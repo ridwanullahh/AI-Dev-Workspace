@@ -1282,9 +1282,9 @@ export const logger = winston.createLogger({
 
   private async initializeProjectIndex(projectId: string): Promise<void> {
     try {
-      await localVectorSearch.createIndex(\`project_\${projectId}\`, 'hybrid');
+      await localVectorSearch.createIndex(`project_${projectId}`, 'hybrid');
     } catch (error) {
-      console.error(\`Failed to initialize index for project \${projectId}:\`, error);
+      console.error(`Failed to initialize index for project ${projectId}:`, error);
     }
   }
 
@@ -1304,7 +1304,7 @@ export const logger = winston.createLogger({
       await this.initialize();
     }
 
-    const projectId = \`project_\${Date.now()}_\${Math.random().toString(36).substr(2, 9)}\`;
+    const projectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     const project: Project = {
       id: projectId,
@@ -1333,7 +1333,7 @@ export const logger = winston.createLogger({
         // Create files from template
         for (const templateFile of template.files) {
           const file: ProjectFile = {
-            id: \`file_\${Date.now()}_\${Math.random().toString(36).substr(2, 9)}\`,
+            id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             path: templateFile.path,
             content: templateFile.content,
             language: templateFile.language,
@@ -1410,7 +1410,7 @@ export const logger = winston.createLogger({
       await this.initialize();
     }
 
-    const projectId = \`project_\${Date.now()}_\${Math.random().toString(36).substr(2, 9)}\`;
+    const projectId = `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     try {
       // Clone repository
@@ -1429,7 +1429,7 @@ export const logger = winston.createLogger({
           try {
             const content = await gitManager.getFileContent(repoId, file.path);
             const projectFile: ProjectFile = {
-              id: \`file_\${Date.now()}_\${Math.random().toString(36).substr(2, 9)}\`,
+              id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
               path: file.path,
               content,
               language: this.detectLanguage(file.path),
@@ -1438,7 +1438,7 @@ export const logger = winston.createLogger({
             };
             projectFiles.push(projectFile);
           } catch (error) {
-            console.warn(\`Failed to read file \${file.path}:\`, error);
+            console.warn(`Failed to read file ${file.path}:`, error);
           }
         }
       }
@@ -1771,7 +1771,7 @@ export const logger = winston.createLogger({
               updatedFiles.push(existingFile);
             } else {
               const newFile: ProjectFile = {
-                id: \`file_\${Date.now()}_\${Math.random().toString(36).substr(2, 9)}\`,
+                id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                 path: file.path,
                 content,
                 language: this.detectLanguage(file.path),
