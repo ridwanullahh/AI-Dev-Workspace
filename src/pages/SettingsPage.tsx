@@ -2,6 +2,7 @@ import React from 'react'
 import { Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { AccountManager } from '@/components/AccountManager'
 
 export function SettingsPage() {
   return (
@@ -13,17 +14,11 @@ export function SettingsPage() {
         </p>
       </div>
 
-      <div className="space-y-4">
-        <div className="bg-card rounded-lg p-4 border border-border">
-          <h3 className="font-semibold mb-2">AI Providers</h3>
-          <p className="text-sm text-muted-foreground mb-3">
-            Manage your AI service provider accounts
-          </p>
-          <Button variant="outline" size="sm">
-            Configure Providers
-          </Button>
-        </div>
+      {/* AI Provider Accounts */}
+      <AccountManager />
 
+      {/* Other Settings Sections */}
+      <div className="space-y-4">
         <div className="bg-card rounded-lg p-4 border border-border">
           <h3 className="font-semibold mb-2">Appearance</h3>
           <p className="text-sm text-muted-foreground mb-3">

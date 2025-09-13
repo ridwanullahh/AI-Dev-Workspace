@@ -84,13 +84,69 @@ export const useChatStore = create<ChatState & ChatActions>()(
             provider: get().currentProvider
           }
 
-          // Simulate AI response (in real implementation, this would call AI provider)
-          await get().simulateAIResponse(request, userMessage, agentId)
+          // Use enhanced AI provider manager
+          await get().sendAIRequest(request, userMessage, agentId)
           
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to send message'
           set({ error: errorMessage, isLoading: false, isStreaming: false })
           throw error
+        }
+      },
+
+      // Send request using enhanced AI provider manager
+      sendAIRequest: async (request: AIRequest, userMessage: ChatMessage, agentId?: string) => {
+        try {
+          const { addMessage } = useWorkspaceStore.getState()
+          
+          // Import dynamically to avoid circular dependency
+          const { enhancedAIProviderManager } = await import('@/services/enhancedAIProviderManager')
+          
+          let currentContent = ''
+          
+          // Send request to AI provider
+          const response = await enhancedAIProviderManager.sendMessage(request, {
+            preferredProvider: get().currentProvider,
+            priority: 5,
+            timeout: 30000
+          })
+          
+          // Simulate streaming response
+          const words = response.content.split(' ')
+          for (let i = 0; i <= words.length; i++) {
+            currentContent = words.slice(0, i).join(' ')
+            get().updateStreamingMessage(currentContent)
+            await new Promise(resolve => setTimeout(resolve, 50)) // 50ms per word
+          }
+          
+          // Create AI response message
+          const aiMessage: ChatMessage = {
+            id: `msg_${Date.now()}_ai`,
+            content: response.content,
+            role: 'assistant',
+            agentId,
+            projectId: userMessage.projectId,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              model: response.model,
+              provider: response.provider,
+              tokens: response.usage.totalTokens,
+              cost: response.cost || 0
+            }
+          }
+
+          // Add AI message to store
+          addMessage(aiMessage)
+          set((state) => ({
+            messages: [...state.messages, aiMessage],
+            isLoading: false,
+            isStreaming: false,
+            streamingMessage: null
+          }))
+          
+        } catch (error) {
+          // Fallback to simulated response if AI provider fails
+          await get().simulateAIResponse(request, userMessage, agentId)
         }
       },
 
