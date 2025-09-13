@@ -79,6 +79,27 @@ class StorageService {
           contextStore.createIndex('type', 'type');
           contextStore.createIndex('relevanceScore', 'relevanceScore');
         }
+
+        // Vector database store
+        if (!db.objectStoreNames.contains('vectorDatabase')) {
+          const vectorStore = db.createObjectStore('vectorDatabase', { keyPath: 'id' });
+          vectorStore.createIndex('timestamp', 'timestamp');
+        }
+
+        // Knowledge graph store
+        if (!db.objectStoreNames.contains('knowledgeGraph')) {
+          const knowledgeStore = db.createObjectStore('knowledgeGraph', { keyPath: 'id' });
+          knowledgeStore.createIndex('type', 'type');
+          knowledgeStore.createIndex('projectId', 'projectId');
+        }
+
+        // Semantic memory store
+        if (!db.objectStoreNames.contains('semanticMemory')) {
+          const memoryStore = db.createObjectStore('semanticMemory', { keyPath: 'id' });
+          memoryStore.createIndex('projectId', 'projectId');
+          memoryStore.createIndex('type', 'type');
+          memoryStore.createIndex('timestamp', 'timestamp');
+        }
       };
     });
   }
@@ -285,7 +306,7 @@ class StorageService {
   async clearAll(): Promise<void> {
     if (!this.db) return;
 
-    const stores = ['projects', 'messages', 'providers', 'agents', 'tasks', 'files', 'embeddings', 'context'];
+    const stores = ['projects', 'messages', 'providers', 'agents', 'tasks', 'files', 'embeddings', 'context', 'vectorDatabase', 'knowledgeGraph', 'semanticMemory'];
     for (const storeName of stores) {
       const transaction = this.db.transaction([storeName], 'readwrite');
       const store = transaction.objectStore(storeName);
@@ -306,6 +327,103 @@ class StorageService {
       };
     }
     return { used: 0, available: 0 };
+  }
+
+  // Vector Database operations
+  async saveVectorDatabaseData(data: any): Promise<void> {
+    await this.performTransaction('vectorDatabase', 'put', {
+      id: 'vector_database_main',
+      data,
+      timestamp: new Date()
+    });
+  }
+
+  async getVectorDatabaseData(): Promise<any> {
+    const result = await this.performTransaction('vectorDatabase', 'get', undefined, 'vector_database_main') as any;
+    return result?.data;
+  }
+
+  // Knowledge Graph operations
+  async saveKnowledgeNode(node: any): Promise<void> {
+    await this.performTransaction('knowledgeGraph', 'put', node);
+  }
+
+  async getKnowledgeNodes(projectId?: string, type?: string): Promise<any[]> {
+    if (projectId || type) {
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction(['knowledgeGraph'], 'readonly');
+        const store = transaction.objectStore('knowledgeGraph');
+        
+        let request: IDBRequest;
+        if (projectId) {
+          const index = store.index('projectId');
+          request = index.getAll(projectId);
+        } else if (type) {
+          const index = store.index('type');
+          request = index.getAll(type);
+        } else {
+          request = store.getAll();
+        }
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+    return await this.performTransaction('knowledgeGraph', 'getAll') as any[];
+  }
+
+  async deleteKnowledgeNode(id: string): Promise<void> {
+    await this.performTransaction('knowledgeGraph', 'delete', undefined, id);
+  }
+
+  // Semantic Memory operations
+  async saveSemanticMemory(memory: any): Promise<void> {
+    await this.performTransaction('semanticMemory', 'put', memory);
+  }
+
+  async getSemanticMemory(projectId?: string, type?: string): Promise<any[]> {
+    if (projectId || type) {
+      return new Promise((resolve, reject) => {
+        const transaction = this.db!.transaction(['semanticMemory'], 'readonly');
+        const store = transaction.objectStore('semanticMemory');
+        
+        let request: IDBRequest;
+        if (projectId) {
+          const index = store.index('projectId');
+          request = index.getAll(projectId);
+        } else if (type) {
+          const index = store.index('type');
+          request = index.getAll(type);
+        } else {
+          request = store.getAll();
+        }
+
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+    return await this.performTransaction('semanticMemory', 'getAll') as any[];
+  }
+
+  async deleteSemanticMemory(id: string): Promise<void> {
+    await this.performTransaction('semanticMemory', 'delete', undefined, id);
+  }
+
+  async clearSemanticMemory(projectId?: string): Promise<void> {
+    if (projectId) {
+      const memories = await this.getSemanticMemory(projectId);
+      for (const memory of memories) {
+        await this.deleteSemanticMemory(memory.id);
+      }
+    } else {
+      const transaction = this.db!.transaction(['semanticMemory'], 'readwrite');
+      const store = transaction.objectStore('semanticMemory');
+      await new Promise<void>((resolve, reject) => {
+        const request = store.clear();
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    }
   }
 }
 
