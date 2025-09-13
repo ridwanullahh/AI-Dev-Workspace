@@ -1,6 +1,6 @@
-module.exports = function (api) {
+export default function (api) {
   api.cache(false)
   return {
-    presets: ['babel-preset-expo'],
+    presets: ['@babel/preset-env', '@babel/preset-react', '@babel/preset-typescript'],
   }
 }
