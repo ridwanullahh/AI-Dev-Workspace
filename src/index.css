@@ -1,0 +1,159 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+}
+
+@layer components {
+  .mobile-container {
+    @apply max-w-md mx-auto min-h-screen bg-background;
+  }
+  
+  .bottom-nav {
+    @apply fixed bottom-0 left-0 right-0 bg-background border-t border-border z-50;
+  }
+  
+  .chat-bubble {
+    @apply rounded-2xl px-4 py-2 max-w-[80%] break-words;
+  }
+  
+  .chat-bubble-user {
+    @apply bg-primary text-primary-foreground ml-auto;
+  }
+  
+  .chat-bubble-ai {
+    @apply bg-muted text-muted-foreground mr-auto;
+  }
+  
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+}
+
+/* Custom scrollbar for mobile */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground));
+  border-radius: 2px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground));
+}
+
+/* Monaco Editor mobile optimization */
+.monaco-editor-container {
+  @apply rounded-lg overflow-hidden;
+}
+
+.monaco-editor-container .monaco-editor {
+  @apply text-sm;
+}
+
+/* Terminal styling */
+.terminal-container {
+  @apply bg-black text-green-400 font-mono text-sm rounded-lg overflow-hidden;
+}
+
+/* Loading skeleton */
+.skeleton {
+  @apply animate-pulse bg-muted rounded;
+}
+
+/* Mobile gesture indicators */
+.swipe-indicator {
+  @apply h-1 w-12 bg-muted rounded-full mx-auto;
+}
+
+/* Voice interaction button */
+.voice-button {
+  @apply relative;
+}
+
+.voice-button.recording::before {
+  content: '';
+  @apply absolute inset-0 bg-red-500 rounded-full animate-ping;
+}
+
+/* Agent status indicators */
+.agent-status {
+  @apply w-2 h-2 rounded-full;
+}
+
+.agent-status.idle {
+  @apply bg-gray-400;
+}
+
+.agent-status.working {
+  @apply bg-blue-500;
+}
+
+.agent-status.error {
+  @apply bg-red-500;
+}
+
+.agent-status.paused {
+  @apply bg-yellow-500;
+}

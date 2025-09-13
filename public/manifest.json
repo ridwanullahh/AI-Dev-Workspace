@@ -1,0 +1,91 @@
+{
+  "name": "AI Dev Workspace",
+  "short_name": "AI Workspace",
+  "description": "Mobile-first AI development workspace with autonomous agents",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1F2937",
+  "theme_color": "#00D4FF",
+  "orientation": "portrait-primary",
+  "categories": ["productivity", "development", "utilities"],
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png", 
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512", 
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    },
+    {
+      "src": "/favicon-16x16.png", 
+      "sizes": "16x16",
+      "type": "image/png"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Mobile workspace view"
+    },
+    {
+      "src": "/screenshot-desktop.png", 
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Desktop workspace view"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Chat",
+      "short_name": "Chat",
+      "description": "Start a new conversation with AI",
+      "url": "/?action=new-chat",
+      "icons": [{ "src": "/icons/chat.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "New Project", 
+      "short_name": "Project",
+      "description": "Create a new development project",
+      "url": "/projects?action=new",
+      "icons": [{ "src": "/icons/project.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Code Editor",
+      "short_name": "Code",
+      "description": "Open the code editor",
+      "url": "/code",
+      "icons": [{ "src": "/icons/code.svg", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [],
+  "edge_side_panel": {
+    "preferred_width": 400
+  }
+}

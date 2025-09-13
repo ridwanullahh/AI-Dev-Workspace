@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#1F2937" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AI Dev Workspace" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="AI Dev Workspace" />
+    <meta name="msapplication-TileColor" content="#1F2937" />
+    <meta name="msapplication-config" content="/browserconfig.xml" />
+    
+    <!-- PWA Meta Tags -->
+    <meta name="description" content="Mobile-first AI development workspace with autonomous agents" />
+    <meta name="keywords" content="AI, development, workspace, mobile, autonomous agents" />
+    <meta name="author" content="AI Dev Workspace Team" />
+    
+    <!-- Open Graph Meta Tags -->
+    <meta property="og:title" content="AI Dev Workspace" />
+    <meta property="og:description" content="Mobile-first AI development workspace with autonomous agents" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://aiworkspace.app" />
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AI Dev Workspace" />
+    <meta name="twitter:description" content="Mobile-first AI development workspace with autonomous agents" />
+    
+    <!-- Preconnect to external domains -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    
+    <!-- Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Theme -->
+    <script>
+      // Check for dark mode preference
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.classList.add('dark');
+      }
+    </script>
+    
+    <title>AI Dev Workspace</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
