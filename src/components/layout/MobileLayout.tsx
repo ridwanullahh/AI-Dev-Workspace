@@ -3,6 +3,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { 
   Home, 
   Folder, 
+  Rocket,
   Brain, 
   Code, 
   Settings,
@@ -22,6 +23,7 @@ interface MobileLayoutProps {
 const navItems = [
   { id: 'workspace', label: 'Workspace', icon: Home, path: '/' },
   { id: 'projects', label: 'Projects', icon: Folder, path: '/projects' },
+  { id: 'deployments', label: 'Deployments', icon: Rocket, path: '/deployments' },
   { id: 'agents', label: 'Agents', icon: Brain, path: '/agents' },
   { id: 'code', label: 'Code', icon: Code, path: '/code' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' }
