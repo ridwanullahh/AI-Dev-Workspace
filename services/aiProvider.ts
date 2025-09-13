@@ -262,72 +262,201 @@ class AIProviderService {
       limits.currentRequests++;
     }
 
-    // Mock response for now - in production, this would make real API calls
-    const mockResponse: AIResponse = {
-      content: this.generateMockResponse(request, provider.name),
-      model: provider.config.model,
-      usage: {
-        promptTokens: this.estimateTokens(request.messages.map(m => m.content).join(' ')),
-        completionTokens: 100,
-        totalTokens: 0
-      }
-    };
-    
-    mockResponse.usage.totalTokens = mockResponse.usage.promptTokens + mockResponse.usage.completionTokens;
-    
-    // Update token counter
-    if (limits) {
-      limits.currentTokens += mockResponse.usage.totalTokens;
-    }
+    try {
+      let response: AIResponse;
 
-    return mockResponse;
+      switch (provider.type) {
+        case 'openai':
+          response = await this.callOpenAI(provider, account, request);
+          break;
+        case 'anthropic':
+          response = await this.callAnthropic(provider, account, request);
+          break;
+        case 'google':
+          response = await this.callGemini(provider, account, request);
+          break;
+        case 'cohere':
+          response = await this.callCohere(provider, account, request);
+          break;
+        default:
+          throw new Error(`Unsupported provider type: ${provider.type}`);
+      }
+
+      // Update token counter
+      if (limits) {
+        limits.currentTokens += response.usage.totalTokens;
+      }
+
+      return response;
+    } catch (error) {
+      console.error(`API call failed for ${provider.name}:`, error);
+      throw error;
+    }
   }
 
-  private generateMockResponse(request: AIRequest, providerName: string): string {
-    const lastMessage = request.messages[request.messages.length - 1];
-    const userQuery = lastMessage?.content || '';
+  private async callOpenAI(provider: AIProvider, account: AIAccount, request: AIRequest): Promise<AIResponse> {
+    const response = await fetch(`${provider.config.baseURL || 'https://api.openai.com/v1'}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${account.apiKey}`
+      },
+      body: JSON.stringify({
+        model: request.model || provider.config.model,
+        messages: request.messages.map(m => ({ role: m.role, content: m.content })),
+        temperature: request.temperature || provider.config.temperature,
+        max_tokens: request.maxTokens || provider.config.maxTokens,
+        top_p: provider.config.topP,
+        frequency_penalty: provider.config.frequencyPenalty,
+        presence_penalty: provider.config.presencePenalty
+      })
+    });
 
-    // Generate contextual responses based on common development queries
-    if (userQuery.toLowerCase().includes('create') || userQuery.toLowerCase().includes('build')) {
-      return `I'll help you create that using ${providerName}. Let me analyze your requirements and generate the appropriate code structure. This is a demo response - in the full implementation, I'll connect to the real ${providerName} API with intelligent key rotation to avoid rate limits.
-
-Based on your request, here's what I suggest:
-
-1. **Architecture**: We'll use a modular approach
-2. **Components**: Break down into reusable parts  
-3. **State Management**: Implement proper data flow
-4. **Testing**: Add comprehensive test coverage
-
-Would you like me to start with any specific part?`;
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`OpenAI API error: ${response.status} - ${error}`);
     }
 
-    if (userQuery.toLowerCase().includes('fix') || userQuery.toLowerCase().includes('debug')) {
-      return `I'm analyzing the issue using ${providerName}. Let me examine the code and identify potential problems:
+    const data = await response.json();
+    
+    return {
+      content: data.choices[0].message.content,
+      model: data.model,
+      usage: {
+        promptTokens: data.usage.prompt_tokens,
+        completionTokens: data.usage.completion_tokens,
+        totalTokens: data.usage.total_tokens
+      },
+      cost: this.calculateCost('openai', data.usage.total_tokens)
+    };
+  }
 
-**Possible Issues Found:**
-- Component lifecycle problems
-- State synchronization issues
-- Missing error boundaries
-- Performance bottlenecks
+  private async callAnthropic(provider: AIProvider, account: AIAccount, request: AIRequest): Promise<AIResponse> {
+    const messages = request.messages.filter(m => m.role !== 'system');
+    const systemMessage = request.messages.find(m => m.role === 'system')?.content;
 
-**Recommended Solutions:**
-1. Add proper error handling
-2. Implement loading states
-3. Optimize re-renders
-4. Add input validation
+    const response = await fetch(`${provider.config.baseURL || 'https://api.anthropic.com'}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': account.apiKey!,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: request.model || provider.config.model,
+        max_tokens: request.maxTokens || provider.config.maxTokens,
+        temperature: request.temperature || provider.config.temperature,
+        system: systemMessage,
+        messages: messages.map(m => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: m.content }))
+      })
+    });
 
-This is a demonstration response. The production version will use real ${providerName} analysis with multi-account load balancing.`;
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Anthropic API error: ${response.status} - ${error}`);
     }
 
-    return `Hello! I'm responding via ${providerName} with intelligent key rotation. Your message: "${userQuery.substring(0, 100)}${userQuery.length > 100 ? '...' : ''}"
+    const data = await response.json();
+    
+    return {
+      content: data.content[0].text,
+      model: data.model,
+      usage: {
+        promptTokens: data.usage.input_tokens,
+        completionTokens: data.usage.output_tokens,
+        totalTokens: data.usage.input_tokens + data.usage.output_tokens
+      },
+      cost: this.calculateCost('anthropic', data.usage.input_tokens + data.usage.output_tokens)
+    };
+  }
 
-I understand you're working on development tasks. I can help with:
-- Code generation and refactoring
-- Architecture planning and design
-- Debugging and optimization
-- Testing and deployment
+  private async callGemini(provider: AIProvider, account: AIAccount, request: AIRequest): Promise<AIResponse> {
+    const contents = request.messages.map(msg => ({
+      parts: [{ text: msg.content }],
+      role: msg.role === 'assistant' ? 'model' : 'user'
+    }));
 
-This is a demo response showcasing the multi-provider system. In production, I'll use real API connections with automatic failover and rate limit management across multiple accounts.`;
+    const response = await fetch(`${provider.config.baseURL || 'https://generativelanguage.googleapis.com/v1beta'}/models/${request.model || provider.config.model}:generateContent?key=${account.apiKey}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents,
+        generationConfig: {
+          temperature: request.temperature || provider.config.temperature,
+          maxOutputTokens: request.maxTokens || provider.config.maxTokens,
+          topP: provider.config.topP
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Gemini API error: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json();
+    
+    const content = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No response generated';
+    const totalTokens = (data.usageMetadata?.promptTokenCount || 0) + (data.usageMetadata?.candidatesTokenCount || 0);
+    
+    return {
+      content,
+      model: request.model || provider.config.model,
+      usage: {
+        promptTokens: data.usageMetadata?.promptTokenCount || 0,
+        completionTokens: data.usageMetadata?.candidatesTokenCount || 0,
+        totalTokens
+      },
+      cost: this.calculateCost('google', totalTokens)
+    };
+  }
+
+  private async callCohere(provider: AIProvider, account: AIAccount, request: AIRequest): Promise<AIResponse> {
+    const response = await fetch(`${provider.config.baseURL || 'https://api.cohere.ai'}/v1/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${account.apiKey}`
+      },
+      body: JSON.stringify({
+        model: request.model || provider.config.model,
+        message: request.messages[request.messages.length - 1]?.content || '',
+        temperature: request.temperature || provider.config.temperature,
+        max_tokens: request.maxTokens || provider.config.maxTokens,
+        p: provider.config.topP
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Cohere API error: ${response.status} - ${error}`);
+    }
+
+    const data = await response.json();
+    
+    return {
+      content: data.text,
+      model: request.model || provider.config.model,
+      usage: {
+        promptTokens: data.meta?.tokens?.input_tokens || 0,
+        completionTokens: data.meta?.tokens?.output_tokens || 0,
+        totalTokens: (data.meta?.tokens?.input_tokens || 0) + (data.meta?.tokens?.output_tokens || 0)
+      },
+      cost: this.calculateCost('cohere', (data.meta?.tokens?.input_tokens || 0) + (data.meta?.tokens?.output_tokens || 0))
+    };
+  }
+
+  private calculateCost(providerType: string, tokens: number): number {
+    const costs = {
+      openai: 0.0015 / 1000, // $0.0015 per 1K tokens (GPT-3.5-turbo)
+      anthropic: 0.00025 / 1000, // $0.00025 per 1K tokens (Claude Haiku)
+      google: 0, // Free tier
+      cohere: 0.0005 / 1000 // $0.0005 per 1K tokens
+    };
+    
+    return (costs[providerType] || 0) * tokens;
   }
 
   private estimateTokens(text: string): number {

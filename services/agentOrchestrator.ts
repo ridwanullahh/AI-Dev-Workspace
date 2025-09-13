@@ -486,81 +486,196 @@ Focus on automation, reliability, and best practices for production systems.`,
       }
     ];
 
-    // Send to AI provider
-    const response = await aiProviderService.sendMessage({
-      messages,
-      model: agent.config.primaryProvider,
-      temperature: agent.config.temperature,
-      maxTokens: agent.config.maxTokens
-    });
+    try {
+      // Use AI provider to get response
+      const response = await aiProviderService.sendMessage({
+        messages: messages.map(m => ({ role: m.role, content: m.content })),
+        model: agent.config.primaryProvider,
+        temperature: agent.config.temperature,
+        maxTokens: agent.config.maxTokens
+      });
 
-    // Process the response and create result
-    return {
-      output: response.content,
-      files: [], // Would be populated based on agent's output
-      success: true,
-      metadata: {
-        agent: agent.id,
-        model: response.model,
-        tokens: response.usage.totalTokens,
-        processingTime: Date.now() - new Date(task.createdAt).getTime()
-      }
-    };
+      // Parse response and extract files if any
+      const files = this.extractFilesFromResponse(response.content);
+      
+      return {
+        output: response.content,
+        files,
+        success: true,
+        metadata: {
+          model: response.model,
+          provider: agent.config.primaryProvider,
+          tokens: response.usage.totalTokens,
+          cost: response.cost
+        }
+      };
+    } catch (error) {
+      return {
+        output: '',
+        files: [],
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        metadata: {}
+      };
+    }
   }
 
-  private async prepareTaskContext(task: Task): Promise<string> {
-    // Get project context
-    const project = await storageService.getProject(task.projectId);
-    if (!project) return '';
+  private async prepareTaskContext(task: Task): Promise<any> {
+    // Gather relevant context for the task
+    const context: any = {
+      project: null,
+      relatedFiles: [],
+      previousTasks: [],
+      knowledge: []
+    };
 
-    // Get relevant files and context
-    const projectFiles = await storageService.getProjectFiles(task.projectId);
-    const recentMessages = await storageService.getMessages(task.projectId);
-    
-    // Use embedding service to find relevant context
-    const relevantContent = await embeddingService.search(task.description, {
-      projectId: task.projectId,
-      limit: 5,
-      threshold: 0.4
-    });
+    try {
+      // Get project context if available
+      if (task.projectId) {
+        const project = await storageService.getProject(task.projectId);
+        if (project) {
+          context.project = {
+            id: project.id,
+            name: project.name,
+            type: project.type,
+            description: project.description
+          };
 
-    let context = `Project: ${project.name}\nDescription: ${project.description}\n\n`;
-    
-    if (relevantContent.length > 0) {
-      context += 'Relevant Context:\n';
-      for (const content of relevantContent) {
-        context += `- ${content.content.substring(0, 200)}...\n`;
+          // Get project files
+          context.relatedFiles = await storageService.getProjectFiles(task.projectId);
+        }
       }
-      context += '\n';
-    }
 
-    if (projectFiles.length > 0) {
-      context += `Project Files (${projectFiles.length} total):\n`;
-      for (const file of projectFiles.slice(0, 10)) {
-        context += `- ${file.path} (${file.language})\n`;
+      // Get previous related tasks
+      const allTasks = await storageService.getTasks(task.projectId);
+      context.previousTasks = allTasks
+        .filter(t => t.id !== task.id && t.status === 'completed')
+        .slice(-5); // Last 5 completed tasks
+
+      // Get relevant knowledge from vector search
+      if (task.description) {
+        const searchResults = await embeddingService.search(task.description, {
+          projectId: task.projectId,
+          limit: 3,
+          threshold: 0.4
+        });
+        context.knowledge = searchResults;
       }
-      context += '\n';
+
+    } catch (error) {
+      console.error('Failed to prepare task context:', error);
     }
 
     return context;
   }
 
-  private formatTaskPrompt(task: Task, context: string): string {
-    return `${context}
+  private formatTaskPrompt(task: Task, context: any): string {
+    let prompt = `**Task Assignment**\n\n`;
+    
+    prompt += `**Task Details:**\n`;
+    prompt += `- Type: ${task.type}\n`;
+    prompt += `- Priority: ${task.priority}\n`;
+    prompt += `- Title: ${task.title}\n`;
+    prompt += `- Description: ${task.description}\n\n`;
 
-**Task Details:**
-- Type: ${task.type}
-- Priority: ${task.priority}
-- Title: ${task.title}
-- Description: ${task.description}
+    if (context.project) {
+      prompt += `**Project Context:**\n`;
+      prompt += `- Project: ${context.project.name} (${context.project.type})\n`;
+      prompt += `- Description: ${context.project.description}\n\n`;
+    }
 
-Please analyze this task and provide a detailed solution. Focus on:
-1. Understanding the requirements
-2. Providing a clear implementation approach
-3. Identifying any potential issues or considerations
-4. Suggesting best practices
+    if (context.relatedFiles && context.relatedFiles.length > 0) {
+      prompt += `**Related Files:**\n`;
+      context.relatedFiles.slice(0, 3).forEach((file: any, index: number) => {
+        prompt += `${index + 1}. ${file.path} (${file.language})\n`;
+      });
+      prompt += `\n`;
+    }
 
-Your response should be practical and actionable.`;
+    if (context.previousTasks && context.previousTasks.length > 0) {
+      prompt += `**Previous Work:**\n`;
+      context.previousTasks.forEach((prevTask: any, index: number) => {
+        prompt += `${index + 1}. ${prevTask.title}: ${prevTask.result?.output?.substring(0, 100)}...\n`;
+      });
+      prompt += `\n`;
+    }
+
+    prompt += `**Instructions:**\n`;
+    prompt += `1. Analyze the task requirements carefully\n`;
+    prompt += `2. Consider the project context and existing codebase\n`;
+    prompt += `3. Provide a detailed, actionable solution\n`;
+    prompt += `4. Include code examples where appropriate\n`;
+    prompt += `5. Identify any potential issues or considerations\n`;
+    prompt += `6. Suggest best practices and next steps\n\n`;
+
+    prompt += `Please provide a comprehensive response that addresses all aspects of this task.`;
+
+    return prompt;
+  }
+
+  private extractFilesFromResponse(content: string): any[] {
+    const files: any[] = [];
+    
+    // Extract code blocks from response
+    const codeBlockRegex = /```(?:\w+)?\n([\s\S]*?)```/g;
+    let match;
+    
+    while ((match = codeBlockRegex.exec(content)) !== null) {
+      const codeContent = match[1];
+      const lines = codeContent.split('\n');
+      
+      if (lines.length > 0) {
+        // Try to extract file path from first line if it looks like a path
+        const firstLine = lines[0].trim();
+        let filePath = '';
+        let language = '';
+        
+        // Check if first line looks like a file path
+        if (firstLine.includes('.') && !firstLine.includes(' ')) {
+          filePath = firstLine;
+          language = filePath.split('.').pop() || 'text';
+          // Remove the file path from the code content
+          lines.shift();
+        } else {
+          filePath = `generated_file_${files.length + 1}.${this.detectLanguage(lines.join('\n'))}`;
+          language = this.detectLanguage(lines.join('\n'));
+        }
+        
+        files.push({
+          id: `file_${Date.now()}_${files.length}`,
+          path: filePath,
+          name: filePath.split('/').pop() || filePath,
+          content: lines.join('\n'),
+          language,
+          size: lines.join('\n').length,
+          lastModified: new Date(),
+          isGenerated: true
+        });
+      }
+    }
+    
+    return files;
+  }
+
+  private detectLanguage(code: string): string {
+    // Simple language detection based on code patterns
+    const patterns = {
+      javascript: /function|const|let|var|=>|import|export/,
+      typescript: /interface|type|:.*string|:.*number|:.*boolean/,
+      python: /def |import |from |if __name__|print\(/,
+      java: /public class|private|void static|System\.out/,
+      css: /{|}|margin:|padding:|background:/,
+      html: /<div|<span|<p>|<h[1-6]/,
+      sql: /SELECT|INSERT|UPDATE|DELETE|FROM|WHERE/
+    };
+
+    for (const [language, pattern] of Object.entries(patterns)) {
+      if (pattern.test(code)) {
+        return language;
+      }
+    }
+
+    return 'text';
   }
 
   private calculateSuccessRate(agent: Agent): number {
@@ -586,6 +701,65 @@ Your response should be practical and actionable.`;
 
   async toggleAgent(agentId: string, isActive: boolean): Promise<void> {
     const agent = this.agents.get(agentId);
+    if (agent) {
+      agent.isActive = isActive;
+      if (!isActive && agent.status === 'working') {
+        // Handle task reassignment if needed
+        agent.status = 'idle';
+        agent.currentTask = undefined;
+      }
+      await this.saveAgent(agent);
+    }
+  }
+
+  async updateAgentConfig(agentId: string, config: Partial<Agent['config']>): Promise<void> {
+    const agent = this.agents.get(agentId);
+    if (agent) {
+      agent.config = { ...agent.config, ...config };
+      await this.saveAgent(agent);
+    }
+  }
+
+  private async saveAgent(agent: Agent): Promise<void> {
+    this.agents.set(agent.id, agent);
+    await storageService.saveAgent(agent);
+  }
+
+  private async saveAgents(): Promise<void> {
+    for (const agent of this.agents.values()) {
+      await storageService.saveAgent(agent);
+    }
+  }
+
+  startTaskProcessor(): void {
+    // Process task queue every 30 seconds
+    setInterval(() => {
+      if (!this.isProcessing && this.taskQueue.length > 0) {
+        this.processTaskQueue();
+      }
+    }, 30000);
+  }
+
+  getOrchestrationStats(): {
+    totalAgents: number;
+    activeAgents: number;
+    tasksInQueue: number;
+    activeAssignments: number;
+    totalTasksCompleted: number;
+    averageSuccessRate: number;
+  } {
+    const agents = Array.from(this.agents.values());
+    
+    return {
+      totalAgents: agents.length,
+      activeAgents: agents.filter(a => a.isActive).length,
+      tasksInQueue: this.taskQueue.length,
+      activeAssignments: this.activeAssignments.size,
+      totalTasksCompleted: agents.reduce((sum, a) => sum + a.performance.tasksCompleted, 0),
+      averageSuccessRate: agents.reduce((sum, a) => sum + a.performance.successRate, 0) / agents.length
+    };
+  }
+}
     if (agent) {
       agent.isActive = isActive;
       if (!isActive && agent.status === 'working') {
