@@ -4,6 +4,7 @@ import { WorkspaceProvider } from './contexts/WorkspaceContext'
 import { MobileLayout } from './components/layout/MobileLayout'
 import { WorkspacePage } from './pages/WorkspacePage'
 import { ProjectsPage } from './pages/EnhancedProjectsPage'
+import { DeploymentPage } from './pages/DeploymentPage'
 import { AgentsPage } from './pages/AgentsPage'
 import { CodePage } from './pages/CodePage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -41,6 +42,7 @@ function AppContent() {
         <Route path="/" element={<MobileLayout />}>
           <Route index element={<WorkspacePage />} />
           <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/deployments" element={<DeploymentPage />} />
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/code" element={<CodePage />} />
           <Route path="/settings" element={<SettingsPage />} />
