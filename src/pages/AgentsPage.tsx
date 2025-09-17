@@ -24,3 +24,5 @@ export function AgentsPage() {
     </div>
   )
 }
+
+export default AgentsPage;

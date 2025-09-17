@@ -40,8 +40,8 @@ interface ProjectCardProps {
     type: 'react-native' | 'web' | 'node' | 'python' | 'ai-service'
     status: 'active' | 'paused' | 'completed' | 'archived'
     progress: number
-    createdAt: string
-    updatedAt: string
+    createdAt: Date
+    updatedAt: Date
     files: Array<any>
   }
   gitIntegration?: any
@@ -280,11 +280,13 @@ export function EnhancedProjectsPage() {
     description: '',
     type: 'web' as const,
     templateId: '',
-    initializeGit: false,
-    gitRemoteUrl: '',
-    gitCredentials: {
-      username: '',
-      token: ''
+    git: {
+      initialize: false,
+      remoteUrl: '',
+      credentials: {
+        username: '',
+        token: ''
+      }
     }
   })
 
@@ -308,21 +310,23 @@ export function EnhancedProjectsPage() {
         description: newProjectData.description,
         type: newProjectData.type,
         templateId: newProjectData.templateId || undefined,
-        initializeGit: newProjectData.initializeGit,
-        gitRemoteUrl: newProjectData.gitRemoteUrl || undefined,
-        gitCredentials: newProjectData.gitCredentials.token ? {
-          username: newProjectData.gitCredentials.username,
-          token: newProjectData.gitCredentials.token
-        } : undefined
+        initializeGit: newProjectData.git.initialize,
+        gitRemoteUrl: newProjectData.git.remoteUrl,
+        gitCredentials: newProjectData.git.credentials,
       })
       setNewProjectData({
         name: '',
         description: '',
         type: 'web',
         templateId: '',
-        initializeGit: false,
-        gitRemoteUrl: '',
-        gitCredentials: { username: '', token: '' }
+        git: {
+          initialize: false,
+          remoteUrl: '',
+          credentials: {
+            username: '',
+            token: ''
+          }
+        }
       })
       setShowCreateModal(false)
     } catch (error) {
@@ -629,8 +633,8 @@ export function EnhancedProjectsPage() {
                   <input
                     type="checkbox"
                     id="initializeGit"
-                    checked={newProjectData.initializeGit}
-                    onChange={(e) => setNewProjectData({ ...newProjectData, initializeGit: e.target.checked })}
+                    checked={newProjectData.git.initialize}
+                    onChange={(e) => setNewProjectData({ ...newProjectData, git: { ...newProjectData.git, initialize: e.target.checked } })}
                     className="rounded"
                   />
                   <label htmlFor="initializeGit" className="text-sm font-medium">
@@ -638,35 +642,35 @@ export function EnhancedProjectsPage() {
                   </label>
                 </div>
 
-                {newProjectData.initializeGit && (
+                {newProjectData.git.initialize && (
                   <div className="space-y-3 pl-6 border-l-2 border-border">
                     <div>
                       <label className="text-sm font-medium mb-2 block">Remote URL (Optional)</label>
                       <Input
-                        value={newProjectData.gitRemoteUrl}
-                        onChange={(e) => setNewProjectData({ ...newProjectData, gitRemoteUrl: e.target.value })}
+                        value={newProjectData.git.remoteUrl}
+                        onChange={(e) => setNewProjectData({ ...newProjectData, git: { ...newProjectData.git, remoteUrl: e.target.value } })}
                         placeholder="https://github.com/username/repo.git"
                       />
                     </div>
 
-                    {(newProjectData.gitRemoteUrl || newProjectData.initializeGit) && (
+                    {(newProjectData.git.remoteUrl || newProjectData.git.initialize) && (
                       <div className="space-y-2">
                         <label className="text-sm font-medium mb-2 block">Git Credentials (Optional)</label>
                         <Input
                           placeholder="Username"
-                          value={newProjectData.gitCredentials.username}
+                          value={newProjectData.git.credentials.username}
                           onChange={(e) => setNewProjectData({
                             ...newProjectData,
-                            gitCredentials: { ...newProjectData.gitCredentials, username: e.target.value }
+                            git: { ...newProjectData.git, credentials: { ...newProjectData.git.credentials, username: e.target.value } }
                           })}
                         />
                         <Input
                           placeholder="Personal Access Token"
                           type="password"
-                          value={newProjectData.gitCredentials.token}
+                          value={newProjectData.git.credentials.token}
                           onChange={(e) => setNewProjectData({
                             ...newProjectData,
-                            gitCredentials: { ...newProjectData.gitCredentials, token: e.target.value }
+                            git: { ...newProjectData.git, credentials: { ...newProjectData.git.credentials, token: e.target.value } }
                           })}
                         />
                       </div>
@@ -859,3 +863,5 @@ export function EnhancedProjectsPage() {
     </div>
   )
 }
+
+export default EnhancedProjectsPage;

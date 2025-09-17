@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { useChatStore } from '@/stores/chatStore'
 import { useWorkspaceStore } from '@/stores/workspaceStore'
-import { 
-  MessageSquare, 
-  Send, 
-  Paperclip, 
+import { contextManagementSystem } from '@/services/contextManager'
+import {
+  MessageSquare,
+  Send,
+  Paperclip,
   Mic,
   StopCircle,
   Bot,
@@ -12,7 +13,9 @@ import {
   Clock,
   Copy,
   Trash2,
-  MoreVertical
+  MoreVertical,
+  Brain,
+  BrainCircuit
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -49,6 +52,8 @@ export function ChatInterface({
   const [inputMessage, setInputMessage] = useState('')
   const [isRecording, setIsRecording] = useState(false)
   const [showActions, setShowActions] = useState<string | null>(null)
+  const [useContext, setUseContext] = useState(true)
+  const [isRetrievingContext, setIsRetrievingContext] = useState(false)
   
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -72,12 +77,57 @@ export function ChatInterface({
 
   const handleSend = async () => {
     if (!inputMessage.trim() || isLoading || isStreaming) return
-    
+
     try {
-      await sendMessage(inputMessage.trim(), projectId, agentId)
+      let enhancedMessage = inputMessage.trim()
+
+      if (useContext && projectId) {
+        setIsRetrievingContext(true)
+
+        try {
+          // Get or create context window
+          let contextId = `context_${projectId}_${agentId || 'general'}`
+          let contextWindow = await contextManagementSystem.getContextWindow(contextId)
+
+          if (!contextWindow) {
+            contextId = await contextManagementSystem.createContextWindow(projectId, agentId || 'general')
+          }
+
+          // Add current messages to context
+          for (const msg of filteredMessages.slice(-10)) { // Last 10 messages
+            await contextManagementSystem.addMessage(contextId, msg)
+          }
+
+          // Retrieve optimized context
+          const optimizedContext = await contextManagementSystem.getOptimizedContext(contextId, {
+            query: enhancedMessage,
+            maxTokens: 1000,
+            minRelevance: 0.3
+          })
+
+          if (optimizedContext.totalTokens > 0) {
+            // Format context for the prompt
+            const contextText = [
+              ...optimizedContext.memories.map(m => `Memory: ${m.content}`),
+              ...optimizedContext.knowledgeNodes.map(k => `Knowledge: ${k.content}`),
+              ...optimizedContext.messages.slice(-3).map(m => `${m.role}: ${m.content}`) // Last 3 messages
+            ].join('\n\n')
+
+            enhancedMessage = `Context from previous interactions:\n${contextText}\n\nCurrent query: ${enhancedMessage}`
+          }
+        } catch (error) {
+          console.error('Failed to retrieve context:', error)
+          // Continue without context
+        } finally {
+          setIsRetrievingContext(false)
+        }
+      }
+
+      await sendMessage(enhancedMessage, projectId, agentId)
       setInputMessage('')
     } catch (error) {
       console.error('Failed to send message:', error)
+      setIsRetrievingContext(false)
     }
   }
 
@@ -102,10 +152,10 @@ export function ChatInterface({
     // In a real implementation, this would start/stop voice recording
   }
 
-  const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+  const formatTime = (timestamp: Date) => {
+    return timestamp.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
     })
   }
 
@@ -153,9 +203,22 @@ export function ChatInterface({
             </select>
             
             <Button
+              variant={useContext ? "default" : "ghost"}
+              size="icon"
+              onClick={() => setUseContext(!useContext)}
+              title={useContext ? "Disable context enhancement" : "Enable context enhancement"}
+              className={useContext ? "bg-blue-500 text-white hover:bg-blue-600" : ""}
+            >
+              {isRetrievingContext ? (
+                <BrainCircuit className="h-4 w-4 animate-pulse" />
+              ) : (
+                <Brain className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
               variant="ghost"
               size="icon"
-              onClick={() => clearMessages(projectId)}
+              onClick={() => clearMessages()}
               title="Clear conversation"
             >
               <Trash2 className="h-4 w-4" />

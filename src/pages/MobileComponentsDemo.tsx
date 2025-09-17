@@ -3,7 +3,7 @@ import { CardSwipe } from '@/components/ui/mobile-optimized/CardSwipe'
 import { BottomSheet } from '@/components/ui/mobile-optimized/BottomSheet'
 import { PullToRefresh } from '@/components/ui/mobile-optimized/PullToRefresh'
 import { InfiniteScroll, SwipeableList, SwipeableTaskItem } from '@/components/ui/mobile-optimized'
-import { GestureNavigation, GestureCarousel } from '@/components/ui/mobile-optimized/GestureNavigation'
+import { GestureNavigation } from '@/components/ui/mobile-optimized/GestureNavigation'
 import { QuickActionsMenu, EditFloatingMenu, FileFloatingMenu } from '@/components/ui/mobile-optimized/FloatingActionMenu'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -220,11 +220,19 @@ export function MobileComponentsDemo() {
             {tasks.slice(0, 5).map((task) => (
               <SwipeableTaskItem
                 key={task.id}
-                task={task}
                 onDelete={() => handleDeleteTask(task.id)}
                 onArchive={() => handleArchiveTask(task.id)}
                 onStar={() => handleStarTask(task.id)}
-              />
+              >
+                <div className="p-3 bg-background rounded-lg border">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">{task.title}</h4>
+                    {task.completed && (
+                      <Badge variant="outline">Completed</Badge>
+                    )}
+                  </div>
+                </div>
+              </SwipeableTaskItem>
             ))}
           </SwipeableList>
         </CardContent>
@@ -244,7 +252,7 @@ export function MobileComponentsDemo() {
           </p>
           <div className="max-h-64 overflow-y-auto border rounded-lg">
             <InfiniteScroll
-              onLoadMore={loadMoreTasks}
+              loadMore={loadMoreTasks}
               hasMore={tasks.length < 20}
               loading={loading}
               threshold={100}
@@ -278,11 +286,12 @@ export function MobileComponentsDemo() {
           <p className="text-sm text-muted-foreground mb-4">
             Swipe or use arrow keys to navigate between cards
           </p>
-          <GestureCarousel
-            items={carouselItems}
-            currentIndex={carouselIndex}
-            onIndexChange={setCarouselIndex}
-          />
+          <GestureNavigation
+            onSwipeLeft={() => setCarouselIndex((prev) => (prev + 1) % carouselItems.length)}
+            onSwipeRight={() => setCarouselIndex((prev) => (prev - 1 + carouselItems.length) % carouselItems.length)}
+          >
+            {carouselItems[carouselIndex]}
+          </GestureNavigation>
         </CardContent>
       </Card>
 
@@ -426,3 +435,5 @@ export function MobileComponentsDemo() {
     </div>
   )
 }
+
+export default MobileComponentsDemo;

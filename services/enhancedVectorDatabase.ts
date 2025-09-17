@@ -1,7 +1,7 @@
 import * as tf from '@tensorflow/tfjs';
 import * as use from '@tensorflow-models/universal-sentence-encoder';
 import { VectorSearchResult, EmbeddingModel, SearchIndex, IndexEntry } from './types';
-import { storageService } from './storage';
+import { StorageService } from './StorageService';
 
 interface EnhancedIndexEntry extends IndexEntry {
   hierarchicalCluster?: number;
@@ -44,6 +44,14 @@ class EnhancedVectorDatabase {
   private compressionThreshold = 500;
   private nextClusterId = 0;
 
+  // Enhanced caching properties
+  private semanticCache: Map<string, { result: VectorSearchResult[]; timestamp: Date; ttl: number }> = new Map();
+  private queryPatternCache: Map<string, string[]> = new Map();
+  private prefetchQueue: Set<string> = new Set();
+  private cacheWarmingQueries: string[] = [
+    'function', 'class', 'import', 'export', 'component', 'api', 'database', 'async'
+  ];
+
   async initialize(): Promise<void> {
     try {
       console.log('Initializing Enhanced Vector Database...');
@@ -73,25 +81,23 @@ class EnhancedVectorDatabase {
 
   private async loadPersistentData(): Promise<void> {
     try {
-      const data = await storageService.getVectorDatabaseData();
-      if (data) {
-        // Load indexes
-        if (data.indexes) {
-          this.indexes = new Map(data.indexes);
-        }
-        
-        // Load hierarchical clusters
-        if (data.clusters) {
-          this.hierarchicalClusters = new Map(data.clusters);
-        }
-        
-        // Load access stats
-        if (data.accessStats) {
-          this.accessStats = new Map(data.accessStats);
-        }
-        
-        console.log(`Loaded ${this.indexes.size} indexes and ${this.hierarchicalClusters.size} clusters`);
+      const indexesData = await StorageService.getAllVectorIndexes();
+      const entriesData = await StorageService.getAllIndexEntries();
+
+      for (const indexData of indexesData) {
+        const index: SearchIndex = {
+          ...(indexData as any),
+          entries: entriesData.filter(e => e.indexId === indexData.id) as any[],
+        };
+        this.indexes.set(index.id, index);
       }
+      
+      // HIERARCHICAL CLUSTERING AND ACCESS STATS ARE NOT PERSISTED IN THE NEW MODEL
+      // THEY WILL BE REBUILT ON INITIALIZE
+      this.hierarchicalClusters.clear();
+      this.accessStats.clear();
+      
+      console.log(`Loaded ${this.indexes.size} indexes`);
     } catch (error) {
       console.error('Failed to load persistent data:', error);
     }
@@ -99,14 +105,22 @@ class EnhancedVectorDatabase {
 
   private async savePersistentData(): Promise<void> {
     try {
-      const data = {
-        indexes: Array.from(this.indexes.entries()),
-        clusters: Array.from(this.hierarchicalClusters.entries()),
-        accessStats: Array.from(this.accessStats.entries()),
-        timestamp: Date.now()
-      };
-      
-      await storageService.saveVectorDatabaseData(data);
+      for (const index of this.indexes.values()) {
+        const { entries, ...indexData } = index;
+        if (await StorageService.getVectorIndex(index.id)) {
+          await StorageService.updateVectorIndex(index.id, indexData as any);
+        } else {
+          await StorageService.addVectorIndex(indexData as any);
+        }
+
+        for (const entry of entries) {
+          if (await StorageService.getIndexEntry(entry.id)) {
+            await StorageService.updateIndexEntry(entry.id, entry as any);
+          } else {
+            await StorageService.addIndexEntry({ ...entry, indexId: index.id } as any);
+          }
+        }
+      }
     } catch (error) {
       console.error('Failed to save persistent data:', error);
     }
@@ -166,7 +180,7 @@ class EnhancedVectorDatabase {
     // Create hierarchical clusters for existing data
     for (const [indexId, index] of this.indexes) {
       if (index.entries.length > 10) {
-        await this.createHierarchicalClusters(indexId, index.entries);
+        await this.createHierarchicalClusters(indexId, index.entries as EnhancedIndexEntry[]);
       }
     }
   }
@@ -279,6 +293,7 @@ class EnhancedVectorDatabase {
     }
     
     // Calculate cluster radii and return results
+    const clusters: EnhancedIndexEntry[][] = Array(k).fill(null).map(() => []);
     return clusters.map((cluster, i) => ({
       centroid: centroids[i],
       members: cluster,
@@ -363,8 +378,9 @@ class EnhancedVectorDatabase {
     const embedding = Array.from(await embeddings.data());
     
     // Normalize embedding
-    const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-    return magnitude > 0 ? embedding.map(val => val / magnitude) : embedding;
+    const embeddingArray = embedding as number[];
+    const magnitude = Math.sqrt(embeddingArray.reduce((sum, val) => sum + val * val, 0));
+    return magnitude > 0 ? embeddingArray.map(val => val / magnitude) : embeddingArray;
   }
 
   private preprocessCode(code: string): string {
@@ -447,7 +463,18 @@ class EnhancedVectorDatabase {
       useCache = true
     } = options;
 
-    // Check cache first
+    // Check semantic cache first (enhanced caching)
+    if (useCache) {
+      const semanticResults = this.getSemanticCache(query);
+      if (semanticResults) {
+        console.log(`Cache hit for query: "${query}"`);
+        // Trigger prefetching for related queries
+        this.prefetchRelatedQueries(query);
+        return semanticResults.slice(0, limit);
+      }
+    }
+
+    // Check LRU cache (existing)
     const cacheKey = `${query}_${type}_${projectId || 'all'}`;
     if (useCache && this.lruCache.has(cacheKey)) {
       const cachedResult = this.lruCache.get(cacheKey)!;
@@ -486,12 +513,20 @@ class EnhancedVectorDatabase {
       .sort((a, b) => b.importanceScore - a.importanceScore)
       .slice(0, limit);
 
-    // Update cache
+    const finalResults = this.convertToVectorSearchResult(sortedResults);
+
+    // Update semantic cache with results
+    if (useCache && finalResults.length > 0) {
+      this.updateSemanticCache(query, finalResults);
+      this.prefetchRelatedQueries(query);
+    }
+
+    // Update LRU cache
     if (sortedResults.length > 0) {
       this.updateLRUCache(cacheKey, sortedResults[0]);
     }
 
-    return this.convertToVectorSearchResult(sortedResults);
+    return finalResults;
   }
 
   private async hierarchicalSearch(queryEmbedding: number[], projectId?: string, type?: string): Promise<EnhancedIndexEntry[]> {
@@ -830,6 +865,118 @@ class EnhancedVectorDatabase {
     return this.convertToVectorSearchResult(sortedResults);
   }
 
+  // Enhanced caching methods
+  async warmCache(): Promise<void> {
+    console.log('Warming vector database cache...');
+
+    for (const query of this.cacheWarmingQueries) {
+      try {
+        const results = await this.search(query, { limit: 5 });
+        this.updateSemanticCache(query, results, 3600000); // 1 hour TTL
+      } catch (error) {
+        console.warn(`Failed to warm cache for query "${query}":`, error);
+      }
+    }
+
+    console.log('Cache warming completed');
+  }
+
+  private updateSemanticCache(query: string, results: VectorSearchResult[], ttl: number = 1800000): void {
+    const cacheKey = this.generateCacheKey(query);
+    this.semanticCache.set(cacheKey, {
+      result: results,
+      timestamp: new Date(),
+      ttl
+    });
+
+    // Maintain cache size
+    if (this.semanticCache.size > 500) {
+      const oldestKey = Array.from(this.semanticCache.entries())
+        .sort((a, b) => a[1].timestamp.getTime() - b[1].timestamp.getTime())[0][0];
+      this.semanticCache.delete(oldestKey);
+    }
+  }
+
+  private getSemanticCache(query: string): VectorSearchResult[] | null {
+    const cacheKey = this.generateCacheKey(query);
+    const cached = this.semanticCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.timestamp.getTime() < cached.ttl) {
+      return cached.result;
+    }
+
+    if (cached) {
+      this.semanticCache.delete(cacheKey); // Expired, remove it
+    }
+
+    return null;
+  }
+
+  private generateCacheKey(query: string): string {
+    // Simple hash for cache key
+    let hash = 0;
+    for (let i = 0; i < query.length; i++) {
+      const char = query.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return `semantic_${Math.abs(hash)}`;
+  }
+
+  private analyzeQueryPattern(query: string): string[] {
+    const patterns = [];
+    const words = this.tokenize(query.toLowerCase());
+
+    // Extract patterns like "find function", "search class", etc.
+    if (words.includes('find') || words.includes('search') || words.includes('get')) {
+      patterns.push('search');
+    }
+
+    if (words.includes('function') || words.includes('method')) {
+      patterns.push('function');
+    }
+
+    if (words.includes('class') || words.includes('component')) {
+      patterns.push('class');
+    }
+
+    return patterns;
+  }
+
+  private prefetchRelatedQueries(query: string): void {
+    const patterns = this.analyzeQueryPattern(query);
+
+    // Prefetch common related queries based on patterns
+    if (patterns.includes('function')) {
+      this.prefetchQueue.add('async function');
+      this.prefetchQueue.add('export function');
+    }
+
+    if (patterns.includes('class')) {
+      this.prefetchQueue.add('React component');
+      this.prefetchQueue.add('export class');
+    }
+
+    // Process prefetch queue in background
+    if (this.prefetchQueue.size > 0) {
+      setTimeout(() => this.processPrefetchQueue(), 100);
+    }
+  }
+
+  private async processPrefetchQueue(): Promise<void> {
+    const queries = Array.from(this.prefetchQueue);
+    this.prefetchQueue.clear();
+
+    for (const query of queries.slice(0, 3)) { // Limit to 3 prefetch queries
+      try {
+        const results = await this.search(query, { limit: 3 });
+        this.updateSemanticCache(query, results, 1800000); // 30 min TTL
+      } catch (error) {
+        console.debug(`Prefetch failed for "${query}":`, error);
+      }
+    }
+  }
+
   async clearAllData(): Promise<void> {
     this.indexes.clear();
     this.hierarchicalClusters.clear();
@@ -837,9 +984,21 @@ class EnhancedVectorDatabase {
     this.accessStats.clear();
     this.vocabulary.clear();
     this.idfScores.clear();
+    this.semanticCache.clear();
+    this.queryPatternCache.clear();
+    this.prefetchQueue.clear();
     this.nextClusterId = 0;
 
     await this.savePersistentData();
+  }
+
+  async deleteIndex(indexId: string): Promise<void> {
+    if (this.indexes.has(indexId)) {
+      this.indexes.delete(indexId);
+      // Clean up related data if necessary (e.g., entries in StorageService)
+      // This part is simplified; a real implementation would be more robust.
+      await this.savePersistentData();
+    }
   }
 }
 

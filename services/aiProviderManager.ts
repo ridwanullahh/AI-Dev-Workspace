@@ -184,7 +184,7 @@ class AIProviderManager {
       const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       this.requestQueue.push({
         id: requestId,
-        request: { ...request, preferredProvider },
+        request: { ...request },
         resolve,
         reject
       });

@@ -20,22 +20,19 @@ interface ChatActions {
   setError: (error: string | null) => void
   addMessage: (message: ChatMessage) => void
   updateStreamingMessage: (content: string) => void
-  finishStreaming: () => void
-}
-
-const initialState: ChatState = {
-  messages: [],
-  isLoading: false,
-  error: null,
-  currentProvider: 'gemini',
-  streamingMessage: null,
-  isStreaming: false
+  finishStreaming: () => void;
+  simulateAIResponse: (request: AIRequest, userMessage: ChatMessage, agentId?: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState & ChatActions>()(
   devtools(
     (set, get) => ({
-      ...initialState,
+      messages: [],
+      isLoading: false,
+      error: null,
+      currentProvider: 'gemini',
+      streamingMessage: null,
+      isStreaming: false,
 
       // Send a message to AI
       sendMessage: async (content: string, projectId?: string, agentId?: string) => {
@@ -50,7 +47,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
             content,
             role: 'user',
             projectId: projectId || currentProject?.id,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(),
             metadata: {
               provider: get().currentProvider
             }
@@ -124,7 +121,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
           role: 'assistant',
           agentId,
           projectId: userMessage.projectId,
-          timestamp: new Date().toISOString(),
+          timestamp: new Date(),
           metadata: {
             model: 'gemini-pro',
             provider: get().currentProvider,
