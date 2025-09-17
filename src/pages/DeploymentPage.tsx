@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { deploymentManager } from '@/services/deploymentManager'
+import { deploymentManager } from '../../services/deploymentManager'
 import { useEnhancedProjectStore } from '@/stores/enhancedProjectStore'
 import { 
   Rocket,
@@ -290,7 +290,8 @@ export function DeploymentPage() {
     name: '',
     trigger: 'push' as const,
     branch: 'main',
-    steps: []
+    steps: [],
+    projectId: ''
   })
 
   useEffect(() => {
@@ -306,10 +307,10 @@ export function DeploymentPage() {
       
       const [platformsData, configsData, deploymentsData, pipelinesData, statsData] = await Promise.all([
         deploymentManager.getPlatforms(),
-        deploymentManager.getDeploymentConfigs(currentProject?.id),
-        deploymentManager.getDeployments(currentProject?.id),
-        deploymentManager.getCIPipelines(currentProject?.id),
-        deploymentManager.getDeploymentStats(currentProject?.id)
+        deploymentManager.getDeploymentConfigs(),
+        deploymentManager.getDeployments(),
+        deploymentManager.getCIPipelines(),
+        deploymentManager.getDeploymentStats()
       ])
 
       setPlatforms(platformsData)
@@ -755,3 +756,5 @@ export function DeploymentPage() {
     </div>
   )
 }
+
+export default DeploymentPage;

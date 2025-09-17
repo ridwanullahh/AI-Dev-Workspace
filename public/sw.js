@@ -82,6 +82,48 @@ registerRoute(
   })
 )
 
+// Cache performance monitoring data
+registerRoute(
+  ({ url }) => url.pathname.includes('/performance'),
+  new NetworkFirst({
+    cacheName: 'performance-data',
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 20,
+        maxAgeSeconds: 30 * 60, // 30 minutes
+      }),
+    ],
+  })
+)
+
+// Cache embedding and vector data
+registerRoute(
+  ({ url }) => url.pathname.includes('/embeddings') || url.pathname.includes('/vectors'),
+  new StaleWhileRevalidate({
+    cacheName: 'vector-data',
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 100,
+        maxAgeSeconds: 60 * 60, // 1 hour
+      }),
+    ],
+  })
+)
+
+// Cache code editor assets
+registerRoute(
+  ({ url }) => url.pathname.includes('/monaco') || url.pathname.includes('/editor'),
+  new CacheFirst({
+    cacheName: 'editor-assets',
+    plugins: [
+      new ExpirationPlugin({
+        maxEntries: 200,
+        maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
+      }),
+    ],
+  })
+)
+
 // Handle offline fallback
 registerRoute(
   ({ event }) => event.request.mode === 'navigate',

@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, Dimensions } from 'react-native';
 
 interface MonacoEditorProps {
   value: string;
@@ -15,6 +14,7 @@ interface MonacoInstance {
   editor: {
     create: (container: HTMLElement, options: any) => any;
     defineTheme: (name: string, theme: any) => void;
+    setModelLanguage: (model: any, language: string) => void;
   };
   languages: {
     register: (language: { id: string }) => void;
@@ -43,7 +43,13 @@ export default function MonacoEditor({
   const editorRef = useRef<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { width } = Dimensions.get('window');
+  const [width, setWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    const handleResize = () => setWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Load Monaco Editor
   useEffect(() => {
@@ -179,54 +185,69 @@ export default function MonacoEditor({
 
   if (error) {
     return (
-      <View style={{ 
-        height, 
-        backgroundColor: '#1F2937', 
-        justifyContent: 'center', 
+      <div style={{
+        height,
+        backgroundColor: '#1F2937',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
         alignItems: 'center',
-        padding: 20,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#374151'
+        padding: '20px',
+        borderRadius: '8px',
+        border: '1px solid #374151'
       }}>
-        <Text style={{ color: '#EF4444', fontSize: 16, textAlign: 'center' }}>
+        <span style={{ color: '#EF4444', fontSize: '16px', textAlign: 'center' }}>
           {error}
-        </Text>
-        <Text style={{ color: '#9CA3AF', fontSize: 14, marginTop: 8, textAlign: 'center' }}>
+        </span>
+        <span style={{ color: '#9CA3AF', fontSize: '14px', marginTop: '8px', textAlign: 'center' }}>
           Please check your internet connection and try refreshing the page.
-        </Text>
-      </View>
+        </span>
+      </div>
     );
   }
 
   if (isLoading) {
     return (
-      <View style={{ 
-        height, 
-        backgroundColor: '#1F2937', 
-        justifyContent: 'center', 
+      <div style={{
+        height,
+        backgroundColor: '#1F2937',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
         alignItems: 'center',
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#374151'
+        borderRadius: '8px',
+        border: '1px solid #374151'
       }}>
-        <ActivityIndicator size="large" color="#00D4FF" />
-        <Text style={{ color: '#9CA3AF', marginTop: 16 }}>Loading Monaco Editor...</Text>
-      </View>
+        <div style={{
+          width: '40px',
+          height: '40px',
+          border: '4px solid #374151',
+          borderTop: '4px solid #00D4FF',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+        <span style={{ color: '#9CA3AF', marginTop: '16px' }}>Loading Monaco Editor...</span>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
     );
   }
 
   return (
-    <View style={{ height, borderRadius: 8, overflow: 'hidden' }}>
-      <div 
-        ref={containerRef} 
-        style={{ 
-          width: '100%', 
+    <div style={{ height, borderRadius: '8px', overflow: 'hidden' }}>
+      <div
+        ref={containerRef}
+        style={{
+          width: '100%',
           height: '100%',
           borderRadius: '8px',
-        }} 
+        }}
       />
-    </View>
+    </div>
   );
 }
 

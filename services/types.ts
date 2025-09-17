@@ -75,8 +75,22 @@ export interface ProjectFile {
   isGenerated: boolean;
 }
 
+export interface GitIntegration {
+  repositoryId?: string;
+  branch: string;
+  status: 'synced' | 'ahead' | 'behind' | 'diverged' | 'disconnected';
+  lastCommit?: string;
+  commitCount: number;
+  untrackedFiles: number;
+  modifiedFiles: number;
+  remoteUrl?: string;
+  isCloned: boolean;
+}
+
 export interface GitRepository {
   id: string;
+  projectId: string;
+  name: string;
   url: string;
   branch: string;
   lastCommit: string;
@@ -94,11 +108,13 @@ export interface AIContext {
 
 export interface KnowledgeNode {
   id: string;
-  type: 'file' | 'function' | 'concept' | 'pattern';
+  type: 'file' | 'function' | 'concept' | 'pattern' | 'edge' | 'cluster';
   content: string;
   connections: string[];
   embedding: number[];
   relevanceScore: number;
+  metadata: Record<string, any>;
+  projectId: string;
 }
 
 export interface ContextMemory {
@@ -108,6 +124,8 @@ export interface ContextMemory {
   timestamp: Date;
   relevanceScore: number;
   embedding: number[];
+  metadata: Record<string, any>;
+  projectId: string;
 }
 
 export interface Agent {
@@ -167,6 +185,7 @@ export interface TaskResult {
 
 export interface AgentAssignment {
   agentId: string;
+  projectId: string;
   role: string;
   isActive: boolean;
   tasksAssigned: number;

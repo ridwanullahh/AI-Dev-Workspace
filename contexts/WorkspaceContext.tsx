@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { Project, Agent, AIProvider, ChatMessage, Task, ProjectFile } from '../services/types';
-import { storageService } from '../services/storage';
-import { aiProviderManager } from '../services/aiProviderManager';
-import { agentOrchestratorService } from '../services/agentOrchestrator';
-import { projectManagerService } from '../services/projectManager';
-import { localVectorSearch } from '../services/localVectorSearch';
+import { StorageService } from '../services/StorageService';
+import { enhancedAIProviderManager } from '../services/enhancedAIProviderManager';
+import { enhancedAgentOrchestrator } from '../services/enhancedAgentOrchestrator';
+import { enhancedProjectManager } from '../services/enhancedProjectManager';
+import { enhancedVectorDatabase } from '../services/enhancedVectorDatabase';
 import { gitManager } from '../services/gitManager';
 import { Alert, Platform } from 'react-native';
 
@@ -95,19 +95,19 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       console.log('🚀 Initializing AI Workspace...');
 
       // Initialize all services in order
-      await storageService.initialize();
+      await StorageService.initialize();
       console.log('✅ Storage service initialized');
 
-      await localVectorSearch.initialize();
+      await enhancedVectorDatabase.initialize();
       console.log('✅ Vector search initialized');
 
-      await aiProviderManager.initialize();
+      await enhancedAIProviderManager.initialize();
       console.log('✅ AI provider manager initialized');
 
-      await agentOrchestratorService.initialize();
+      await enhancedAgentOrchestrator.initialize();
       console.log('✅ Agent orchestrator initialized');
 
-      await projectManagerService.initialize();
+      await enhancedProjectManager.initialize();
       console.log('✅ Project manager initialized');
 
       await gitManager.initialize();
@@ -140,12 +140,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     templateId?: string;
   }): Promise<Project> => {
     try {
-      const project = await projectManagerService.createProject(options);
+      const project = await enhancedProjectManager.createProject(options);
       await refreshProjects();
       setCurrentProject(project);
       
       // Create search index for project
-      await localVectorSearch.createIndex(`project_${project.id}`, 'hybrid');
+      await enhancedVectorDatabase.createIndex(`project_${project.id}`);
       
       return project;
     } catch (err) {
@@ -157,8 +157,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const deleteProject = async (projectId: string): Promise<void> => {
     try {
-      await projectManagerService.deleteProject(projectId);
-      await localVectorSearch.clearIndex(`project_${projectId}`);
+      await enhancedProjectManager.deleteProject(projectId);
+      await enhancedVectorDatabase.deleteIndex(`project_${projectId}`);
       await refreshProjects();
       
       if (currentProject?.id === projectId) {
@@ -173,7 +173,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const refreshProjects = async () => {
     try {
-      const allProjects = await projectManagerService.getAllProjects();
+      const allProjects = await enhancedProjectManager.getProjects();
       setProjects(allProjects);
     } catch (err) {
       console.error('Failed to refresh projects:', err);
@@ -188,7 +188,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     isActive: boolean;
   }): Promise<void> => {
     try {
-      await aiProviderManager.addAccount(providerId, account);
+      await enhancedAIProviderManager.addAccount(providerId, account);
       await refreshProviders();
       showAlert('Success', 'Provider account added successfully');
     } catch (err) {
@@ -200,7 +200,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const refreshProviders = async () => {
     try {
-      const allProviders = await aiProviderManager.getProviders();
+      const allProviders = await enhancedAIProviderManager.getProviders();
       setProviders(allProviders);
     } catch (err) {
       console.error('Failed to refresh providers:', err);
@@ -210,7 +210,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   // Agent management
   const toggleAgent = async (agentId: string, isActive: boolean): Promise<void> => {
     try {
-      await agentOrchestratorService.toggleAgent(agentId, isActive);
+      await enhancedAgentOrchestrator.toggleAgent(agentId, isActive);
       await refreshAgents();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to toggle agent';
@@ -221,7 +221,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const refreshAgents = async () => {
     try {
-      const allAgents = await agentOrchestratorService.getAgents();
+      const allAgents = await enhancedAgentOrchestrator.getAgents();
       setAgents(allAgents);
     } catch (err) {
       console.error('Failed to refresh agents:', err);
@@ -244,12 +244,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       };
 
       // Save user message
-      await storageService.saveMessage(userMessage);
+      await StorageService.addChatMessage(userMessage);
       await refreshMessages(projectId);
 
       // Send to AI provider with context
       const contextMessages = await getRelevantContext(content, projectId);
-      const response = await aiProviderManager.sendMessage({
+      const response = await enhancedAIProviderManager.sendMessage({
         messages: [...contextMessages, userMessage],
         model: currentProvider
       });
@@ -271,7 +271,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       };
 
       // Save AI message and update context
-      await storageService.saveMessage(aiMessage);
+      await StorageService.addChatMessage(aiMessage);
       await addToSearchIndex(aiMessage);
       await refreshMessages(projectId);
 
@@ -285,8 +285,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   // Get relevant context for AI queries
   const getRelevantContext = async (query: string, projectId?: string): Promise<ChatMessage[]> => {
     try {
-      const searchResults = await localVectorSearch.search(query, {
-        indexId: projectId ? `project_${projectId}` : undefined,
+      const searchResults = await enhancedVectorDatabase.search(query, {
+        indexName: projectId ? `project_${projectId}` : undefined,
         limit: 5,
         threshold: 0.4
       });
@@ -308,8 +308,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   // Add message to search index
   const addToSearchIndex = async (message: ChatMessage) => {
     try {
-      const indexId = message.projectId ? `project_${message.projectId}` : 'global';
-      await localVectorSearch.addToIndex(indexId, [{
+      const indexName = message.projectId ? `project_${message.projectId}` : 'global';
+      await enhancedVectorDatabase.addDocuments(indexName, [{
         id: message.id,
         content: message.content,
         metadata: {
@@ -335,7 +335,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const refreshMessages = async (projectId?: string) => {
     try {
-      const allMessages = await storageService.getMessages(projectId || currentProject?.id);
+      const allMessages = await StorageService.getMessages(projectId || currentProject?.id);
       setMessages(allMessages);
     } catch (err) {
       console.error('Failed to refresh messages:', err);
@@ -352,7 +352,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         updatedAt: new Date()
       };
 
-      await agentOrchestratorService.assignTask(newTask);
+      await enhancedAgentOrchestrator.assignTask(newTask);
       await refreshTasks(task.projectId);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create task';
@@ -363,7 +363,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const refreshTasks = async (projectId?: string) => {
     try {
-      const allTasks = await storageService.getTasks(projectId || currentProject?.id);
+      const allTasks = await StorageService.getTasks(projectId || currentProject?.id);
       setTasks(allTasks);
     } catch (err) {
       console.error('Failed to refresh tasks:', err);
@@ -373,10 +373,10 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   // File management
   const addFile = async (projectId: string, file: Omit<ProjectFile, 'id' | 'lastModified'>): Promise<ProjectFile> => {
     try {
-      const newFile = await projectManagerService.addFile(projectId, file);
+      const newFile = await enhancedProjectManager.addFile(projectId, file);
       
       // Add to search index
-      await localVectorSearch.addToIndex(`project_${projectId}`, [{
+      await enhancedVectorDatabase.addDocuments(`project_${projectId}`, [{
         id: `file_${newFile.id}`,
         content: `${newFile.path}: ${newFile.content}`,
         metadata: {
@@ -397,14 +397,14 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const updateFile = async (projectId: string, fileId: string, updates: Partial<ProjectFile>): Promise<void> => {
     try {
-      await projectManagerService.updateFile(projectId, fileId, updates);
+      await enhancedProjectManager.updateFile(projectId, fileId, updates);
       
       // Update search index if content changed
       if (updates.content) {
         const project = projects.find(p => p.id === projectId);
         const file = project?.files.find(f => f.id === fileId);
         if (file) {
-          await localVectorSearch.addToIndex(`project_${projectId}`, [{
+          await enhancedVectorDatabase.addDocuments(`project_${projectId}`, [{
             id: `file_${fileId}`,
             content: `${file.path}: ${updates.content}`,
             metadata: {
@@ -425,8 +425,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
   const deleteFile = async (projectId: string, fileId: string): Promise<void> => {
     try {
-      await projectManagerService.deleteFile(projectId, fileId);
-      await localVectorSearch.removeFromIndex(`project_${projectId}`, `file_${fileId}`);
+      await enhancedProjectManager.deleteFile(projectId, fileId);
+      await enhancedVectorDatabase.removeDocuments(`project_${projectId}`, [`file_${fileId}`]);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete file';
       showAlert('Error', errorMessage);
@@ -448,8 +448,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const searchProjectId = projectId || currentProject?.id;
       if (!searchProjectId) return [];
 
-      return await localVectorSearch.search(query, {
-        indexId: `project_${searchProjectId}`,
+      return await enhancedVectorDatabase.search(query, {
+        indexName: `project_${searchProjectId}`,
         limit: 20,
         threshold: 0.3
       });

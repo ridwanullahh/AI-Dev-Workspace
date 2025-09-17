@@ -45,7 +45,24 @@ class EnhancedAIProviderManager {
     return await aiProviderService.addAccount(providerId, {
       name,
       apiKey,
-      isActive: true
+      isActive: true,
+      rateLimit: {
+        requestsPerMinute: 0,
+        requestsPerHour: 0,
+        requestsPerDay: 0,
+        tokensPerMinute: 0,
+        currentRequests: 0,
+        currentTokens: 0,
+        resetTime: new Date(),
+      },
+      usage: {
+        requestsToday: 0,
+        tokensToday: 0,
+        costToday: 0,
+        lastUsed: new Date(),
+        totalRequests: 0,
+        totalTokens: 0,
+      },
     });
   }
 

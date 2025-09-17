@@ -1,13 +1,14 @@
-import React, { useState } from 'react'
+import React, { useState, Suspense, lazy } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { 
-  Home, 
-  Folder, 
+import {
+  Home,
+  Folder,
   Rocket,
   Smartphone,
-  Brain, 
-  Code, 
+  Brain,
+  Code,
   Settings,
+  BarChart3,
   Menu,
   X,
   Plus,
@@ -16,6 +17,10 @@ import {
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+
+// Lazy load heavy components
+const MonacoEditor = lazy(() => import('../../../components/MonacoEditor'))
 
 interface MobileLayoutProps {
   children?: React.ReactNode
@@ -28,6 +33,7 @@ const navItems = [
   { id: 'demo', label: 'UI Demo', icon: Smartphone, path: '/demo' },
   { id: 'agents', label: 'Agents', icon: Brain, path: '/agents' },
   { id: 'code', label: 'Code', icon: Code, path: '/code' },
+  { id: 'performance', label: 'Performance', icon: BarChart3, path: '/performance' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' }
 ]
 

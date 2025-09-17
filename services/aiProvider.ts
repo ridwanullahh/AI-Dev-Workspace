@@ -1,5 +1,5 @@
 import { AIProvider, AIAccount, ChatMessage, RateLimit, Usage } from './types';
-import { storageService } from './storage';
+import { StorageService } from './StorageService';
 
 interface AIRequest {
   messages: ChatMessage[];
@@ -33,13 +33,18 @@ class AIProviderService {
 
   private async loadProviders(): Promise<void> {
     try {
-      const providers = await storageService.getProviders();
+      const providers = await StorageService.getAllAIProviders();
       for (const provider of providers) {
+        const accounts = await StorageService.getAllAIAccounts();
+        provider.accounts = accounts.filter(a => a.providerId === provider.id);
         this.providers.set(provider.id, provider);
         
         // Initialize rate limit trackers
         for (const account of provider.accounts) {
-          this.rateLimitTrackers.set(account.id, { ...account.rateLimit });
+          const rateLimit = await StorageService.getRateLimit(account.id);
+          if (rateLimit) {
+            this.rateLimitTrackers.set(account.id, rateLimit);
+          }
         }
       }
     } catch (error) {
@@ -534,12 +539,60 @@ class AIProviderService {
 
   private async saveProvider(provider: AIProvider): Promise<void> {
     this.providers.set(provider.id, provider);
-    await storageService.saveProvider(provider);
+    const { accounts, ...providerData } = provider;
+    
+    const providerDBData = {
+      ...providerData,
+      config: { ...providerData.config, providerId: provider.id },
+      accounts: [],
+    };
+
+    if (await StorageService.getAIProvider(provider.id)) {
+      await StorageService.updateAIProvider(provider.id, providerDBData);
+    } else {
+      await StorageService.addAIProvider(providerDBData);
+    }
+
+    for (const account of accounts) {
+      const { usage, rateLimit, ...accountData } = account;
+      const accountDBData = {
+        ...accountData,
+        rateLimit: { ...rateLimit, accountId: account.id },
+        usage: { ...usage, accountId: account.id },
+      };
+      if (await StorageService.getAIAccount(account.id)) {
+        await StorageService.updateAIAccount(account.id, accountDBData);
+      } else {
+        await StorageService.addAIAccount(accountDBData);
+      }
+
+      if (usage) {
+        if (await StorageService.getUsage(account.id)) {
+          await StorageService.updateUsage(account.id, usage);
+        } else {
+          await StorageService.addUsage({ ...usage, accountId: account.id });
+        }
+      }
+
+      if (rateLimit) {
+        if (await StorageService.getRateLimit(account.id)) {
+          await StorageService.updateRateLimit(account.id, rateLimit);
+        } else {
+          await StorageService.addRateLimit({ ...rateLimit, accountId: account.id });
+        }
+      }
+    }
   }
 
   private async saveProviders(): Promise<void> {
     for (const provider of this.providers.values()) {
-      await storageService.saveProvider(provider);
+      const { accounts, ...providerData } = provider;
+      const providerDBData = {
+        ...providerData,
+        config: { ...providerData.config, providerId: provider.id },
+        accounts: [],
+      };
+      await StorageService.addAIProvider(providerDBData);
     }
   }
 

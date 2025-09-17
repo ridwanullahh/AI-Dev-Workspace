@@ -1,7 +1,7 @@
 import * as tf from '@tensorflow/tfjs';
 import * as use from '@tensorflow-models/universal-sentence-encoder';
 import ml5 from 'ml5';
-import { storageService } from './storage';
+import { StorageService } from './StorageService';
 
 interface EmbeddingConfig {
   model: 'universal-sentence-encoder' | 'ml5-word2vec' | 'custom-tfjs' | 'hybrid';
@@ -23,6 +23,7 @@ interface EmbeddingResult {
     framework?: string;
     complexity: number;
   };
+  timestamp: Date;
 }
 
 interface ModelStats {
@@ -48,6 +49,15 @@ class LocalEmbeddingGenerator {
     cacheResults: true,
     compressionLevel: 0
   };
+
+  // Enhanced caching properties
+  private lruEmbeddingCache: Map<string, EmbeddingResult> = new Map();
+  private embeddingAccessStats: Map<string, { count: number; lastAccessed: Date }> = new Map();
+  private cacheWarmingEmbeddings: string[] = [
+    'function', 'class', 'import', 'component', 'api', 'database'
+  ];
+  private maxEmbeddingCacheSize = 2000;
+  private embeddingCacheTTL = 24 * 60 * 60 * 1000; // 24 hours
 
   async initialize(config?: Partial<EmbeddingConfig>): Promise<void> {
     try {
@@ -191,11 +201,12 @@ class LocalEmbeddingGenerator {
 
   private async loadCachedEmbeddings(): Promise<void> {
     try {
-      const cachedData = await storageService.getVectorDatabaseData();
-      if (cachedData && cachedData.embeddingCache) {
-        this.embeddingCache = new Map(cachedData.embeddingCache);
-        console.log(`Loaded ${this.embeddingCache.size} cached embeddings`);
-      }
+      // This functionality is not available in the current StorageService
+      // const cachedData = await StorageService.getVectorDatabaseData();
+      // if (cachedData && cachedData.embeddingCache) {
+      //   this.embeddingCache = new Map(cachedData.embeddingCache);
+      //   console.log(`Loaded ${this.embeddingCache.size} cached embeddings`);
+      // }
     } catch (error) {
       console.error('Failed to load cached embeddings:', error);
     }
@@ -204,9 +215,10 @@ class LocalEmbeddingGenerator {
   private async saveCachedEmbeddings(): Promise<void> {
     try {
       const cacheData = Array.from(this.embeddingCache.entries());
-      const vectorData = await storageService.getVectorDatabaseData() || {};
-      vectorData.embeddingCache = cacheData;
-      await storageService.saveVectorDatabaseData(vectorData);
+      // This functionality is not available in the current StorageService
+      // const vectorData = await StorageService.getVectorDatabaseData() || {};
+      // vectorData.embeddingCache = cacheData;
+      // await StorageService.saveVectorDatabaseData(vectorData);
     } catch (error) {
       console.error('Failed to save cached embeddings:', error);
     }
@@ -232,8 +244,22 @@ class LocalEmbeddingGenerator {
       useCache = this.config.cacheResults
     } = options;
 
-    // Check cache first
+    // Check enhanced LRU cache first
     const cacheKey = this.generateCacheKey(text, type, language, framework);
+    if (useCache && this.lruEmbeddingCache.has(cacheKey)) {
+      const cached = this.lruEmbeddingCache.get(cacheKey)!;
+      // Check if cache entry is still valid
+      if (Date.now() - cached.timestamp.getTime() < this.embeddingCacheTTL) {
+        this.updateAccessStats(cacheKey);
+        console.log(`Embedding cache hit for: "${text.substring(0, 50)}..."`);
+        return cached;
+      } else {
+        // Remove expired cache entry
+        this.lruEmbeddingCache.delete(cacheKey);
+      }
+    }
+
+    // Check original cache as fallback
     if (useCache && this.embeddingCache.has(cacheKey)) {
       return this.embeddingCache.get(cacheKey)!;
     }
@@ -296,15 +322,17 @@ class LocalEmbeddingGenerator {
         language,
         framework,
         complexity: this.calculateComplexity(text, type)
-      }
+      },
+      timestamp: new Date()
     };
 
-    // Cache result
+    // Cache result with enhanced LRU caching
     if (useCache) {
-      this.embeddingCache.set(cacheKey, result);
-      
+      this.updateLRUCache(cacheKey, result);
+      this.embeddingCache.set(cacheKey, result); // Keep original cache too
+
       // Periodically save cache to storage
-      if (this.embeddingCache.size % 100 === 0) {
+      if (this.lruEmbeddingCache.size % 100 === 0) {
         await this.saveCachedEmbeddings();
       }
     }
@@ -667,12 +695,70 @@ class LocalEmbeddingGenerator {
     await this.saveCachedEmbeddings();
   }
 
+  // Enhanced cache warming
+  async warmEmbeddingCache(): Promise<void> {
+    console.log('Warming embedding cache...');
+
+    for (const text of this.cacheWarmingEmbeddings) {
+      try {
+        await this.generateEmbedding(text, { type: 'text' });
+      } catch (error) {
+        console.warn(`Failed to warm cache for embedding: "${text}"`, error);
+      }
+    }
+
+    console.log('Embedding cache warming completed');
+  }
+
+  // Get enhanced cache stats
+  getEnhancedCacheStats(): {
+    lruCacheSize: number;
+    originalCacheSize: number;
+    accessStatsSize: number;
+    hitRate: number;
+  } {
+    const totalAccesses = Array.from(this.embeddingAccessStats.values())
+      .reduce((sum, stat) => sum + stat.count, 0);
+
+    const cacheHits = Array.from(this.embeddingAccessStats.values())
+      .filter(stat => stat.count > 1).length;
+
+    return {
+      lruCacheSize: this.lruEmbeddingCache.size,
+      originalCacheSize: this.embeddingCache.size,
+      accessStatsSize: this.embeddingAccessStats.size,
+      hitRate: totalAccesses > 0 ? cacheHits / totalAccesses : 0
+    };
+  }
+
+  // Clear enhanced caches
+  async clearEnhancedCache(): Promise<void> {
+    this.lruEmbeddingCache.clear();
+    this.embeddingAccessStats.clear();
+    await this.saveCachedEmbeddings();
+  }
+
   updateConfig(config: Partial<EmbeddingConfig>): void {
     this.config = { ...this.config, ...config };
   }
 
   getConfig(): EmbeddingConfig {
     return { ...this.config };
+  }
+
+  private updateAccessStats(cacheKey: string) {
+    const stats = this.embeddingAccessStats.get(cacheKey) || { count: 0, lastAccessed: new Date() };
+    stats.count++;
+    stats.lastAccessed = new Date();
+    this.embeddingAccessStats.set(cacheKey, stats);
+  }
+
+  private updateLRUCache(cacheKey: string, result: EmbeddingResult) {
+    if (this.lruEmbeddingCache.size >= this.maxEmbeddingCacheSize) {
+      const oldestKey = this.lruEmbeddingCache.keys().next().value;
+      this.lruEmbeddingCache.delete(oldestKey);
+    }
+    this.lruEmbeddingCache.set(cacheKey, result);
   }
 }
 

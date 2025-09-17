@@ -73,6 +73,9 @@ export default defineConfig({
       }
     })
   ],
+  define: {
+    'global': {},
+  },
   resolve: {
     alias: {
       '@': resolve(__dirname, './src'),

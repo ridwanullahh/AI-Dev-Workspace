@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { devtools, subscribeWithSelector } from 'zustand/middleware'
-import { enhancedProjectManager } from '../services/enhancedProjectManager'
-import type { Project, ProjectFile, GitIntegration } from '../types'
+import { enhancedProjectManager } from '../../services/enhancedProjectManager'
+import type { Project, ProjectFile, GitIntegration } from '../../services/types'
 
 interface EnhancedProjectState {
   projects: Project[]
@@ -94,7 +94,10 @@ interface EnhancedProjectActions {
   
   // State management
   setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
+  setError: (error: string | null) => void;
+  initialize: () => Promise<void>;
+  filterProjects: () => void;
+  sortProjects: () => void;
 }
 
 const initialState: EnhancedProjectState = {
@@ -540,9 +543,8 @@ export const useEnhancedProjectStore = create<EnhancedProjectState & EnhancedPro
           const { projects, searchQuery } = get()
           
           if (!searchQuery.trim()) {
-            set({ filteredProjects: projects })
-            get().sortProjects()
-            return
+            set({ filteredProjects: projects });
+            return;
           }
 
           const query = searchQuery.toLowerCase()

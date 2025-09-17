@@ -1,6 +1,6 @@
 import { enhancedVectorDatabase } from './enhancedVectorDatabase';
 import { localEmbeddingGenerator } from './localEmbeddingGenerator';
-import { storageService } from './storage';
+import { StorageService } from './StorageService';
 import { VectorSearchResult } from './types';
 
 interface SearchQuery {
@@ -112,11 +112,11 @@ class SemanticSearchEngine {
 
   private async loadSearchIndexes(): Promise<void> {
     try {
-      const data = await storageService.getVectorDatabaseData();
-      if (data && data.searchIndexes) {
-        this.searchIndexes = new Map(data.searchIndexes);
-        console.log(`Loaded ${this.searchIndexes.size} search indexes`);
-      }
+      // const data = await StorageService.getVectorDatabaseData();
+      // if (data && data.searchIndexes) {
+      //   this.searchIndexes = new Map(data.searchIndexes);
+      //   console.log(`Loaded ${this.searchIndexes.size} search indexes`);
+      // }
     } catch (error) {
       console.error('Failed to load search indexes:', error);
     }
@@ -124,11 +124,11 @@ class SemanticSearchEngine {
 
   private async loadQueryCache(): Promise<void> {
     try {
-      const data = await storageService.getVectorDatabaseData();
-      if (data && data.queryCache) {
-        this.queryCache = new Map(data.queryCache);
-        console.log(`Loaded ${this.queryCache.size} cached queries`);
-      }
+      // const data = await StorageService.getVectorDatabaseData();
+      // if (data && data.queryCache) {
+      //   this.queryCache = new Map(data.queryCache);
+      //   console.log(`Loaded ${this.queryCache.size} cached queries`);
+      // }
     } catch (error) {
       console.error('Failed to load query cache:', error);
     }
@@ -136,11 +136,11 @@ class SemanticSearchEngine {
 
   private async loadSearchHistory(): Promise<void> {
     try {
-      const data = await storageService.getVectorDatabaseData();
-      if (data && data.searchHistory) {
-        this.searchHistory = data.searchHistory;
-        console.log(`Loaded ${this.searchHistory.length} search history entries`);
-      }
+      // const data = await StorageService.getVectorDatabaseData();
+      // if (data && data.searchHistory) {
+      //   this.searchHistory = data.searchHistory;
+      //   console.log(`Loaded ${this.searchHistory.length} search history entries`);
+      // }
     } catch (error) {
       console.error('Failed to load search history:', error);
     }
@@ -196,7 +196,7 @@ class SemanticSearchEngine {
 
     // Generate query embedding
     const queryEmbedding = await localEmbeddingGenerator.generateEmbedding(query.text, {
-      type: query.type,
+      type: query.type === 'all' ? 'text' : query.type,
       useCache: true
     });
 
@@ -338,7 +338,7 @@ class SemanticSearchEngine {
           snippets: [],
           highlights: [],
           relatedResults: []
-        });
+        } as SearchResult);
       }
     }
     
@@ -723,13 +723,13 @@ class SemanticSearchEngine {
 
   private async saveSearchData(): Promise<void> {
     try {
-      const data = await storageService.getVectorDatabaseData() || {};
+      const data: any = await StorageService.getVectorDatabaseData() || {};
       data.searchIndexes = Array.from(this.searchIndexes.entries());
       data.queryCache = Array.from(this.queryCache.entries());
       data.searchHistory = this.searchHistory;
       data.performanceMetrics = this.performanceMetrics;
       
-      await storageService.saveVectorDatabaseData(data);
+      await StorageService.saveVectorDatabaseData(data);
     } catch (error) {
       console.error('Failed to save search data:', error);
     }

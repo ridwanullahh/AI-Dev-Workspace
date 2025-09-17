@@ -1,17 +1,47 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { storageService } from '../services/storage'
-import type { 
-  WorkspaceState, 
-  WorkspaceActions, 
-  Project, 
-  AIProvider, 
-  Agent, 
-  ChatMessage, 
-  Task 
+import { StorageService } from '../../services/StorageService'
+import type {
+  Project,
+  AIProvider,
+  Agent,
+  ChatMessage,
+  Task
 } from '../types'
 
 // Initial state
+interface WorkspaceState {
+  isInitialized: boolean;
+  isLoading: boolean;
+  error: string | null;
+  projects: Project[];
+  currentProject: Project | null;
+  providers: AIProvider[];
+  currentProvider: string;
+  agents: Agent[];
+  messages: ChatMessage[];
+  tasks: Task[];
+}
+
+interface WorkspaceActions {
+  initialize: () => Promise<void>;
+  setCurrentProject: (project: Project | null) => void;
+  addProject: (projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'files' | 'aiContext' | 'agents'>) => Promise<void>;
+  updateProject: (id: string, updates: Partial<Project>) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
+  setCurrentProvider: (providerId: string) => void;
+  addMessage: (messageData: Omit<ChatMessage, 'id' | 'timestamp'>) => Promise<void>;
+  updateMessage: (id: string, updates: Partial<ChatMessage>) => Promise<void>;
+  deleteMessage: (id: string) => Promise<void>;
+  addTask: (taskData: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateTask: (id: string, updates: Partial<Task>) => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
+  setError: (error: string | null) => void;
+  setLoading: (loading: boolean) => void;
+  loadProjectData: (projectId: string) => Promise<void>;
+  refreshData: () => Promise<void>;
+}
+
 const initialState: WorkspaceState = {
   isInitialized: false,
   isLoading: false,
@@ -38,18 +68,24 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             set({ isLoading: true, error: null })
             
             // Initialize storage service
-            await storageService.initialize()
+            // await StorageService.initialize()
             
             // Load initial data
             const [projects, providers, agents, messages] = await Promise.all([
-              storageService.getAllProjects(),
-              storageService.getAllAIProviders(),
-              storageService.getAllAgents(),
-              storageService.getMessages()
+              StorageService.getAllProjects(),
+              StorageService.getAllAIProviders(),
+              StorageService.getAllAgents(),
+              StorageService.getAllChatMessages()
             ])
             
             set({
-              projects,
+              projects: projects.map(p => ({
+                ...p,
+                aiContext: {
+                  ...p.aiContext,
+                  codebaseEmbeddings: new Map(Object.entries(p.aiContext.codebaseEmbeddings || {}))
+                }
+              })),
               providers,
               agents,
               messages,
@@ -81,8 +117,8 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             const newProject: Project = {
               ...projectData,
               id: `project_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
+              createdAt: new Date(),
+              updatedAt: new Date(),
               files: [],
               aiContext: {
                 projectSummary: '',
@@ -94,7 +130,21 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
               agents: []
             }
 
-            await storageService.saveProject(newProject)
+            await StorageService.addProject({
+              ...newProject,
+              aiContext: {
+                ...newProject.aiContext,
+                projectId: newProject.id,
+                codebaseEmbeddings: Object.fromEntries(newProject.aiContext.codebaseEmbeddings),
+              },
+              gitRepository: newProject.gitRepository ? {
+                ...newProject.gitRepository,
+                projectId: newProject.id,
+                name: newProject.gitRepository.name || newProject.name
+              } : undefined,
+              agents: newProject.agents.map(a => ({ ...a, projectId: newProject.id })),
+              files: newProject.files.map(f => ({ ...f, projectId: newProject.id }))
+            })
             set((state) => ({
               projects: [...state.projects, newProject],
               currentProject: newProject
@@ -116,10 +166,24 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             const updatedProject = {
               ...project,
               ...updates,
-              updatedAt: new Date().toISOString()
+              updatedAt: new Date()
             }
 
-            await storageService.saveProject(updatedProject)
+            await StorageService.updateProject(updatedProject.id, {
+              ...updatedProject,
+              aiContext: {
+                ...updatedProject.aiContext,
+                projectId: updatedProject.id,
+                codebaseEmbeddings: Object.fromEntries(updatedProject.aiContext.codebaseEmbeddings),
+              },
+              gitRepository: updatedProject.gitRepository ? {
+                ...updatedProject.gitRepository,
+                projectId: updatedProject.id,
+                name: updatedProject.gitRepository.name || updatedProject.name
+              } : undefined,
+              agents: updatedProject.agents.map(a => ({ ...a, projectId: updatedProject.id })),
+              files: updatedProject.files.map(f => ({ ...f, projectId: updatedProject.id }))
+            })
             set((state) => ({
               projects: state.projects.map(p => p.id === id ? updatedProject : p),
               currentProject: state.currentProject?.id === id ? updatedProject : state.currentProject
@@ -135,7 +199,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
 
         deleteProject: async (id: string) => {
           try {
-            await storageService.deleteProject(id)
+            await StorageService.deleteProject(id)
             set((state) => ({
               projects: state.projects.filter(p => p.id !== id),
               currentProject: state.currentProject?.id === id ? null : state.currentProject,
@@ -162,10 +226,10 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             const newMessage: ChatMessage = {
               ...messageData,
               id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              timestamp: new Date().toISOString()
+              timestamp: new Date()
             }
 
-            await storageService.saveMessage(newMessage)
+            await StorageService.addChatMessage(newMessage)
             set((state) => ({
               messages: [...state.messages, newMessage]
             }))
@@ -184,7 +248,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             if (!message) throw new Error('Message not found')
 
             const updatedMessage = { ...message, ...updates }
-            await storageService.saveMessage(updatedMessage)
+            await StorageService.updateChatMessage(updatedMessage.id, updatedMessage)
             set((state) => ({
               messages: state.messages.map(m => m.id === id ? updatedMessage : m)
             }))
@@ -199,7 +263,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
 
         deleteMessage: async (id: string) => {
           try {
-            await storageService.deleteMessage(id)
+            await StorageService.deleteChatMessage(id)
             set((state) => ({
               messages: state.messages.filter(m => m.id !== id)
             }))
@@ -218,11 +282,21 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             const newTask: Task = {
               ...taskData,
               id: `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
+              createdAt: new Date(),
+              updatedAt: new Date()
             }
 
-            await storageService.saveTask(newTask)
+            await StorageService.addTask({
+              ...newTask,
+              result: newTask.result ? {
+                ...newTask.result,
+                taskId: newTask.id,
+                files: newTask.result.files.map(f => ({
+                  ...f,
+                  projectId: newTask.projectId
+                }))
+              } : undefined
+            })
             set((state) => ({
               tasks: [...state.tasks, newTask]
             }))
@@ -243,10 +317,20 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             const updatedTask = {
               ...task,
               ...updates,
-              updatedAt: new Date().toISOString()
+              updatedAt: new Date()
             }
 
-            await storageService.saveTask(updatedTask)
+            await StorageService.updateTask(updatedTask.id, {
+              ...updatedTask,
+              result: updatedTask.result ? {
+                ...updatedTask.result,
+                taskId: updatedTask.id,
+                files: updatedTask.result.files.map(f => ({
+                  ...f,
+                  projectId: updatedTask.projectId
+                }))
+              } : undefined
+            })
             set((state) => ({
               tasks: state.tasks.map(t => t.id === id ? updatedTask : t)
             }))
@@ -261,7 +345,7 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
 
         deleteTask: async (id: string) => {
           try {
-            await storageService.deleteTask(id)
+            await StorageService.deleteTask(id)
             set((state) => ({
               tasks: state.tasks.filter(t => t.id !== id)
             }))
@@ -287,8 +371,8 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
         loadProjectData: async (projectId: string) => {
           try {
             const [messages, tasks] = await Promise.all([
-              storageService.getMessages(projectId),
-              storageService.getTasks(projectId)
+              StorageService.getAllChatMessages(),
+              StorageService.getAllTasks()
             ])
             
             set({
@@ -305,13 +389,19 @@ export const useWorkspaceStore = create<WorkspaceState & WorkspaceActions>()(
             set({ isLoading: true, error: null })
             
             const [projects, providers, agents] = await Promise.all([
-              storageService.getAllProjects(),
-              storageService.getAllAIProviders(),
-              storageService.getAllAgents()
+              StorageService.getAllProjects(),
+              StorageService.getAllAIProviders(),
+              StorageService.getAllAgents()
             ])
             
             set({
-              projects,
+              projects: projects.map(p => ({
+                ...p,
+                aiContext: {
+                  ...p.aiContext,
+                  codebaseEmbeddings: new Map(Object.entries(p.aiContext.codebaseEmbeddings || {}))
+                }
+              })),
               providers,
               agents,
               isLoading: false

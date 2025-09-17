@@ -2,7 +2,7 @@ import { enhancedVectorDatabase } from './enhancedVectorDatabase';
 import { localEmbeddingGenerator } from './localEmbeddingGenerator';
 import { semanticMemoryArchitecture } from './semanticMemory';
 import { knowledgeGraphSystem } from './knowledgeGraph';
-import { storageService } from './storage';
+import { StorageService } from './StorageService';
 import { ChatMessage, AIContext } from './types';
 
 interface ContextConfig {
@@ -49,7 +49,7 @@ interface ContextMemory {
 interface KnowledgeNode {
   id: string;
   content: string;
-  type: 'file' | 'function' | 'concept' | 'pattern';
+  type: 'file' | 'function' | 'concept' | 'pattern' | 'edge' | 'cluster';
   relevanceScore: number;
   embedding: number[];
   connections: string[];
@@ -125,11 +125,21 @@ class ContextManagementSystem {
 
   private async loadContextWindows(): Promise<void> {
     try {
-      const data = await storageService.getVectorDatabaseData();
-      if (data && data.contextWindows) {
-        this.contextWindows = new Map(data.contextWindows);
-        console.log(`Loaded ${this.contextWindows.size} context windows`);
+      const contexts = await StorageService.getAllAIContexts();
+      for (const context of contexts) {
+        const messages = await StorageService.getAllChatMessages();
+        const memories = await StorageService.getAllContextMemories();
+        const knowledge = await StorageService.getAllKnowledgeNodes();
+
+        const contextWindow: ContextWindow = {
+          ...(context as any),
+          messages: messages.filter(m => m.projectId === context.projectId) as any[],
+          memories: memories.filter(m => m.projectId === context.projectId) as any[],
+          knowledgeNodes: knowledge.filter(k => k.projectId === context.projectId) as any[],
+        };
+        this.contextWindows.set(context.projectId, contextWindow);
       }
+      console.log(`Loaded ${this.contextWindows.size} context windows`);
     } catch (error) {
       console.error('Failed to load context windows:', error);
     }
@@ -262,8 +272,6 @@ class ContextManagementSystem {
     if (message.content.length > 500) relevance += 0.1;
 
     // Metadata relevance
-    if (message.metadata?.priority === 'high') relevance += 0.2;
-    if (message.metadata?.priority === 'urgent') relevance += 0.3;
 
     return Math.min(relevance, 1.0);
   }
@@ -722,10 +730,39 @@ class ContextManagementSystem {
 
   private async saveContextWindows(): Promise<void> {
     try {
-      const data = await storageService.getVectorDatabaseData() || {};
-      data.contextWindows = Array.from(this.contextWindows.entries());
-      data.updateHistory = this.updateHistory;
-      await storageService.saveVectorDatabaseData(data);
+      for (const contextWindow of this.contextWindows.values()) {
+        const { messages, memories, knowledgeNodes, ...contextData } = contextWindow;
+        
+        if (await StorageService.getAIContext(contextWindow.projectId)) {
+          await StorageService.updateAIContext(contextWindow.projectId, contextData as any);
+        } else {
+          await StorageService.addAIContext(contextData as any);
+        }
+
+        for (const message of messages) {
+          if (await StorageService.getChatMessage(message.id)) {
+            await StorageService.updateChatMessage(message.id, message as any);
+          } else {
+            await StorageService.addChatMessage({ ...message, projectId: contextWindow.projectId } as any);
+          }
+        }
+        
+        for (const memory of memories) {
+            if (await StorageService.getContextMemory(memory.id)) {
+                await StorageService.updateContextMemory(memory.id, memory as any);
+            } else {
+                await StorageService.addContextMemory({ ...memory, projectId: contextWindow.projectId } as any);
+            }
+        }
+
+        for (const node of knowledgeNodes) {
+            if (await StorageService.getKnowledgeNode(node.id)) {
+                await StorageService.updateKnowledgeNode(node.id, node as any);
+            } else {
+                await StorageService.addKnowledgeNode({ ...node, projectId: contextWindow.projectId } as any);
+            }
+        }
+      }
     } catch (error) {
       console.error('Failed to save context windows:', error);
     }

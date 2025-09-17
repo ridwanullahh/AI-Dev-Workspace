@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { useWorkspaceStore, useChatStore } from '@/stores'
+import { useWorkspaceStore } from '@/stores/workspaceStore'
+import { useChatStore } from '@/stores/chatStore'
 import { 
   Brain, 
   MessageSquare, 
@@ -336,3 +337,5 @@ export function WorkspacePage() {
     </div>
   )
 }
+
+export default WorkspacePage;

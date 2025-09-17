@@ -32,7 +32,9 @@ interface ProjectActions {
   deleteFileFromProject: (projectId: string, fileId: string) => Promise<void>
   refreshProjects: () => Promise<void>
   setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
+  setError: (error: string | null) => void;
+  filterProjects: () => void;
+  sortProjects: () => void;
 }
 
 const initialState: ProjectState = {
@@ -58,7 +60,11 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             set({ isLoading: true, error: null })
             
             const { addProject } = useWorkspaceStore.getState()
-            await addProject(projectData)
+            await addProject({
+              ...projectData,
+              status: 'active',
+              progress: 0,
+            })
             
             // Refresh projects list
             await get().refreshProjects()
@@ -148,13 +154,13 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             const newFile: ProjectFile = {
               ...fileData,
               id: `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-              lastModified: new Date().toISOString()
+              lastModified: new Date()
             }
 
             const updatedProject = {
               ...project,
               files: [...project.files, newFile],
-              updatedAt: new Date().toISOString()
+              updatedAt: new Date()
             }
 
             await get().updateProject(projectId, updatedProject)
@@ -173,14 +179,14 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 
             const updatedFiles = project.files.map(file =>
               file.id === fileId
-                ? { ...file, ...updates, lastModified: new Date().toISOString() }
+                ? { ...file, ...updates, lastModified: new Date() }
                 : file
             )
 
             const updatedProject = {
               ...project,
               files: updatedFiles,
-              updatedAt: new Date().toISOString()
+              updatedAt: new Date()
             }
 
             await get().updateProject(projectId, updatedProject)
@@ -201,7 +207,7 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
             const updatedProject = {
               ...project,
               files: updatedFiles,
-              updatedAt: new Date().toISOString()
+              updatedAt: new Date()
             }
 
             await get().updateProject(projectId, updatedProject)
@@ -292,11 +298,8 @@ export const useProjectStore = create<ProjectState & ProjectActions>()(
 )
 
 // Subscribe to workspace projects and sync with project store
-useWorkspaceStore.subscribe(
-  (state) => state.projects,
-  (projects) => {
-    const projectStore = useProjectStore.getState()
-    projectStore.set({ projects, filteredProjects: projects })
-    projectStore.filterProjects()
-  }
-)
+useWorkspaceStore.subscribe((state) => {
+  const projectStore = useProjectStore.getState()
+  useProjectStore.setState({ projects: state.projects, filteredProjects: state.projects })
+  projectStore.filterProjects()
+})
