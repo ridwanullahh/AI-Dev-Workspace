@@ -1,567 +1,366 @@
-import * as DB from '../src/database/database';
+import { db } from '../src/database/schema';
+import type { 
+  Project, 
+  FileEntry, 
+  ChatMessage, 
+  Account,
+  Memory,
+  Vector,
+  Settings,
+  Commit,
+  Performance,
+  ErrorLog,
+  Todo,
+  Terminal
+} from '../src/database/schema';
 
 export class StorageService {
   static async initialize() {
-    // Initialization logic here
+    // Database is auto-initialized by Dexie
   }
+
   // ==================== PROJECTS ====================
-  static async getProject(id: string): Promise<DB.ProjectDB | undefined> {
-    return await DB.db.projects.get(id);
+  static async getProject(id: string): Promise<Project | undefined> {
+    return await db.projects.get(id);
   }
 
-  static async getAllProjects(): Promise<DB.ProjectDB[]> {
-    return await DB.db.projects.toArray();
+  static async getAllProjects(): Promise<Project[]> {
+    return await db.projects.toArray();
   }
 
-  static async addProject(project: Omit<DB.ProjectDB, 'id'>): Promise<string> {
-    return await DB.db.projects.add(project as DB.ProjectDB);
+  static async addProject(project: Omit<Project, 'id'>): Promise<string> {
+    return await db.projects.add(project as Project);
   }
 
-  static async updateProject(id: string, updates: Partial<DB.ProjectDB>): Promise<void> {
-    await DB.db.projects.update(id, updates);
+  static async updateProject(id: string, updates: Partial<Project>): Promise<void> {
+    await db.projects.update(id, updates);
   }
 
   static async deleteProject(id: string): Promise<void> {
-    await DB.db.projects.delete(id);
+    await db.projects.delete(id);
+    // Clean up related data
+    await db.files.where('projectId').equals(id).delete();
+    await db.chats.where('projectId').equals(id).delete();
+    await db.todos.where('projectId').equals(id).delete();
+    await db.terminals.where('projectId').equals(id).delete();
+    await db.commits.where('projectId').equals(id).delete();
+    await db.memories.where('projectId').equals(id).delete();
   }
 
-  // ==================== PROJECT FILES ====================
-  static async getProjectFile(id: string): Promise<DB.ProjectFileDB | undefined> {
-    return await DB.db.projectFiles.get(id);
+  // ==================== FILES ====================
+  static async getFile(id: string): Promise<FileEntry | undefined> {
+    return await db.files.get(id);
   }
 
-  static async getAllProjectFiles(): Promise<DB.ProjectFileDB[]> {
-    return await DB.db.projectFiles.toArray();
+  static async getProjectFiles(projectId: string): Promise<FileEntry[]> {
+    return await db.files.where('projectId').equals(projectId).toArray();
   }
 
-  static async addProjectFile(file: Omit<DB.ProjectFileDB, 'id'>): Promise<string> {
-    return await DB.db.projectFiles.add(file as DB.ProjectFileDB);
+  static async addFile(file: Omit<FileEntry, 'id'>): Promise<string> {
+    return await db.files.add(file as FileEntry);
   }
 
-  static async updateProjectFile(id: string, updates: Partial<DB.ProjectFileDB>): Promise<void> {
-    await DB.db.projectFiles.update(id, updates);
+  static async updateFile(id: string, updates: Partial<FileEntry>): Promise<void> {
+    await db.files.update(id, updates);
   }
 
-  static async deleteProjectFile(id: string): Promise<void> {
-    await DB.db.projectFiles.delete(id);
-  }
-
-  // ==================== GIT REPOSITORIES ====================
-  static async getGitRepository(id: string): Promise<DB.GitRepositoryDB | undefined> {
-    return await DB.db.gitRepositories.get(id);
-  }
-
-  static async getAllGitRepositories(): Promise<DB.GitRepositoryDB[]> {
-    return await DB.db.gitRepositories.toArray();
-  }
-
-  static async addGitRepository(repo: Omit<DB.GitRepositoryDB, 'id'>): Promise<string> {
-    return await DB.db.gitRepositories.add(repo as DB.GitRepositoryDB);
-  }
-
-  static async updateGitRepository(id: string, updates: Partial<DB.GitRepositoryDB>): Promise<void> {
-    await DB.db.gitRepositories.update(id, updates);
-  }
-
-  static async deleteGitRepository(id: string): Promise<void> {
-    await DB.db.gitRepositories.delete(id);
-  }
-
-  // ==================== AI CONTEXTS ====================
-  static async getAIContext(projectId: string): Promise<DB.AIContextDB | undefined> {
-    return await DB.db.aiContexts.get(projectId);
-  }
-
-  static async getAllAIContexts(): Promise<DB.AIContextDB[]> {
-    return await DB.db.aiContexts.toArray();
-  }
-
-  static async addAIContext(context: DB.AIContextDB): Promise<string> {
-    return await DB.db.aiContexts.add(context);
-  }
-
-  static async updateAIContext(projectId: string, updates: Partial<DB.AIContextDB>): Promise<void> {
-    await DB.db.aiContexts.update(projectId, updates);
-  }
-
-  static async deleteAIContext(projectId: string): Promise<void> {
-    await DB.db.aiContexts.delete(projectId);
-  }
-
-  // ==================== KNOWLEDGE NODES ====================
-  static async getKnowledgeNode(id: string): Promise<DB.KnowledgeNodeDB | undefined> {
-    return await DB.db.knowledgeNodes.get(id);
-  }
-
-  static async getAllKnowledgeNodes(): Promise<DB.KnowledgeNodeDB[]> {
-    return await DB.db.knowledgeNodes.toArray();
-  }
-
-  static async addKnowledgeNode(node: Omit<DB.KnowledgeNodeDB, 'id'>): Promise<string> {
-    return await DB.db.knowledgeNodes.add(node as DB.KnowledgeNodeDB);
-  }
-
-  static async updateKnowledgeNode(id: string, updates: Partial<DB.KnowledgeNodeDB>): Promise<void> {
-    await DB.db.knowledgeNodes.update(id, updates);
-  }
-
-  static async deleteKnowledgeNode(id: string): Promise<void> {
-    await DB.db.knowledgeNodes.delete(id);
-  }
-
-  // ==================== CONTEXT MEMORIES ====================
-  static async getContextMemory(id: string): Promise<DB.ContextMemoryDB | undefined> {
-    return await DB.db.contextMemories.get(id);
-  }
-
-  static async getAllContextMemories(): Promise<DB.ContextMemoryDB[]> {
-    return await DB.db.contextMemories.toArray();
-  }
-
-  static async addContextMemory(memory: Omit<DB.ContextMemoryDB, 'id'>): Promise<string> {
-    return await DB.db.contextMemories.add(memory as DB.ContextMemoryDB);
-  }
-
-  static async updateContextMemory(id: string, updates: Partial<DB.ContextMemoryDB>): Promise<void> {
-    await DB.db.contextMemories.update(id, updates);
-  }
-
-  static async deleteContextMemory(id: string): Promise<void> {
-    await DB.db.contextMemories.delete(id);
-  }
-
-  // ==================== AGENT ASSIGNMENTS ====================
-  static async getAgentAssignment(id: string): Promise<DB.AgentAssignmentDB | undefined> {
-    return await DB.db.agentAssignments.get(id);
-  }
-
-  static async getAllAgentAssignments(): Promise<DB.AgentAssignmentDB[]> {
-    return await DB.db.agentAssignments.toArray();
-  }
-
-  static async addAgentAssignment(assignment: Omit<DB.AgentAssignmentDB, 'id'>): Promise<string> {
-    return await DB.db.agentAssignments.add(assignment as DB.AgentAssignmentDB);
-  }
-
-  static async updateAgentAssignment(id: string, updates: Partial<DB.AgentAssignmentDB>): Promise<void> {
-    await DB.db.agentAssignments.update(id, updates);
-  }
-
-  static async deleteAgentAssignment(id: string): Promise<void> {
-    await DB.db.agentAssignments.delete(id);
-  }
-
-  // ==================== AI PROVIDERS ====================
-  static async getAIProvider(id: string): Promise<DB.AIProviderDB | undefined> {
-    return await DB.db.aiProviders.get(id);
-  }
-
-  static async getAllAIProviders(): Promise<DB.AIProviderDB[]> {
-    return await DB.db.aiProviders.toArray();
-  }
-
-  static async addAIProvider(provider: Omit<DB.AIProviderDB, 'id'>): Promise<string> {
-    return await DB.db.aiProviders.add(provider as DB.AIProviderDB);
-  }
-
-  static async updateAIProvider(id: string, updates: Partial<DB.AIProviderDB>): Promise<void> {
-    await DB.db.aiProviders.update(id, updates);
-  }
-
-  static async deleteAIProvider(id: string): Promise<void> {
-    await DB.db.aiProviders.delete(id);
-  }
-
-  // ==================== AI ACCOUNTS ====================
-  static async getAIAccount(id: string): Promise<DB.AIAccountDB | undefined> {
-    return await DB.db.aiAccounts.get(id);
-  }
-
-  static async getAllAIAccounts(): Promise<DB.AIAccountDB[]> {
-    return await DB.db.aiAccounts.toArray();
-  }
-
-  static async addAIAccount(account: Omit<DB.AIAccountDB, 'id'>): Promise<string> {
-    return await DB.db.aiAccounts.add(account as DB.AIAccountDB);
-  }
-
-  static async updateAIAccount(id: string, updates: Partial<DB.AIAccountDB>): Promise<void> {
-    await DB.db.aiAccounts.update(id, updates);
-  }
-
-  static async deleteAIAccount(id: string): Promise<void> {
-    await DB.db.aiAccounts.delete(id);
-  }
-
-  // ==================== RATE LIMITS ====================
-  static async getRateLimit(accountId: string): Promise<DB.RateLimitDB | undefined> {
-    return await DB.db.rateLimits.get(accountId);
-  }
-
-  static async getAllRateLimits(): Promise<DB.RateLimitDB[]> {
-    return await DB.db.rateLimits.toArray();
-  }
-
-  static async addRateLimit(limit: DB.RateLimitDB): Promise<string> {
-    return await DB.db.rateLimits.add(limit);
-  }
-
-  static async updateRateLimit(accountId: string, updates: Partial<DB.RateLimitDB>): Promise<void> {
-    await DB.db.rateLimits.update(accountId, updates);
-  }
-
-  static async deleteRateLimit(accountId: string): Promise<void> {
-    await DB.db.rateLimits.delete(accountId);
-  }
-
-  // ==================== USAGES ====================
-  static async getUsage(accountId: string): Promise<DB.UsageDB | undefined> {
-    return await DB.db.usages.get(accountId);
-  }
-
-  static async getAllUsages(): Promise<DB.UsageDB[]> {
-    return await DB.db.usages.toArray();
-  }
-
-  static async addUsage(usage: DB.UsageDB): Promise<string> {
-    return await DB.db.usages.add(usage);
-  }
-
-  static async updateUsage(accountId: string, updates: Partial<DB.UsageDB>): Promise<void> {
-    await DB.db.usages.update(accountId, updates);
-  }
-
-  static async deleteUsage(accountId: string): Promise<void> {
-    await DB.db.usages.delete(accountId);
-  }
-
-  // ==================== PROVIDER CONFIGS ====================
-  static async getProviderConfig(providerId: string): Promise<DB.ProviderConfigDB | undefined> {
-    return await DB.db.providerConfigs.get(providerId);
-  }
-
-  static async getAllProviderConfigs(): Promise<DB.ProviderConfigDB[]> {
-    return await DB.db.providerConfigs.toArray();
-  }
-
-  static async addProviderConfig(config: DB.ProviderConfigDB): Promise<string> {
-    return await DB.db.providerConfigs.add(config);
-  }
-
-  static async updateProviderConfig(providerId: string, updates: Partial<DB.ProviderConfigDB>): Promise<void> {
-    await DB.db.providerConfigs.update(providerId, updates);
-  }
-
-  static async deleteProviderConfig(providerId: string): Promise<void> {
-    await DB.db.providerConfigs.delete(providerId);
-  }
-
-  // ==================== AGENTS ====================
-  static async getAgent(id: string): Promise<DB.AgentDB | undefined> {
-    return await DB.db.agents.get(id);
-  }
-
-  static async getAllAgents(): Promise<DB.AgentDB[]> {
-    return await DB.db.agents.toArray();
-  }
-
-  static async addAgent(agent: Omit<DB.AgentDB, 'id'>): Promise<string> {
-    return await DB.db.agents.add(agent as DB.AgentDB);
-  }
-
-  static async updateAgent(id: string, updates: Partial<DB.AgentDB>): Promise<void> {
-    await DB.db.agents.update(id, updates);
-  }
-
-  static async deleteAgent(id: string): Promise<void> {
-    await DB.db.agents.delete(id);
-  }
-
-  // ==================== AGENT PERFORMANCES ====================
-  static async getAgentPerformance(agentId: string): Promise<DB.AgentPerformanceDB | undefined> {
-    return await DB.db.agentPerformances.get(agentId);
-  }
-
-  static async getAllAgentPerformances(): Promise<DB.AgentPerformanceDB[]> {
-    return await DB.db.agentPerformances.toArray();
-  }
-
-  static async addAgentPerformance(performance: DB.AgentPerformanceDB): Promise<string> {
-    return await DB.db.agentPerformances.add(performance);
-  }
-
-  static async updateAgentPerformance(agentId: string, updates: Partial<DB.AgentPerformanceDB>): Promise<void> {
-    await DB.db.agentPerformances.update(agentId, updates);
-  }
-
-  static async deleteAgentPerformance(agentId: string): Promise<void> {
-    await DB.db.agentPerformances.delete(agentId);
-  }
-
-  // ==================== AGENT CONFIGS ====================
-  static async getAgentConfig(agentId: string): Promise<DB.AgentConfigDB | undefined> {
-    return await DB.db.agentConfigs.get(agentId);
-  }
-
-  static async getAllAgentConfigs(): Promise<DB.AgentConfigDB[]> {
-    return await DB.db.agentConfigs.toArray();
-  }
-
-  static async addAgentConfig(config: DB.AgentConfigDB): Promise<string> {
-    return await DB.db.agentConfigs.add(config);
-  }
-
-  static async updateAgentConfig(agentId: string, updates: Partial<DB.AgentConfigDB>): Promise<void> {
-    await DB.db.agentConfigs.update(agentId, updates);
-  }
-
-  static async deleteAgentConfig(agentId: string): Promise<void> {
-    await DB.db.agentConfigs.delete(agentId);
-  }
-
-  // ==================== TASKS ====================
-  static async getTask(id: string): Promise<DB.TaskDB | undefined> {
-    return await DB.db.tasks.get(id);
-  }
-
-  static async getAllTasks(): Promise<DB.TaskDB[]> {
-    return await DB.db.tasks.toArray();
-  }
-
-  static async addTask(task: Omit<DB.TaskDB, 'id'>): Promise<string> {
-    return await DB.db.tasks.add(task as DB.TaskDB);
-  }
-
-  static async updateTask(id: string, updates: Partial<DB.TaskDB>): Promise<void> {
-    await DB.db.tasks.update(id, updates);
-  }
-
-  static async deleteTask(id: string): Promise<void> {
-    await DB.db.tasks.delete(id);
-  }
-
-  // ==================== TASK RESULTS ====================
-  static async getTaskResult(taskId: string): Promise<DB.TaskResultDB | undefined> {
-    return await DB.db.taskResults.get(taskId);
-  }
-
-  static async getAllTaskResults(): Promise<DB.TaskResultDB[]> {
-    return await DB.db.taskResults.toArray();
-  }
-
-  static async addTaskResult(result: DB.TaskResultDB): Promise<string> {
-    return await DB.db.taskResults.add(result);
-  }
-
-  static async updateTaskResult(taskId: string, updates: Partial<DB.TaskResultDB>): Promise<void> {
-    await DB.db.taskResults.update(taskId, updates);
-  }
-
-  static async deleteTaskResult(taskId: string): Promise<void> {
-    await DB.db.taskResults.delete(taskId);
+  static async deleteFile(id: string): Promise<void> {
+    await db.files.delete(id);
   }
 
   // ==================== CHAT MESSAGES ====================
-  static async getChatMessage(id: string): Promise<DB.ChatMessageDB | undefined> {
-    return await DB.db.chatMessages.get(id);
+  static async getChatMessage(id: string): Promise<ChatMessage | undefined> {
+    return await db.chats.get(id);
   }
 
-  static async getAllChatMessages(): Promise<DB.ChatMessageDB[]> {
-    return await DB.db.chatMessages.toArray();
+  static async getAllChatMessages(): Promise<ChatMessage[]> {
+    return await db.chats.toArray();
   }
 
-  static async getMessages(projectId?: string): Promise<DB.ChatMessageDB[]> {
-    if (projectId) {
-      return await DB.db.chatMessages.where('projectId').equals(projectId).toArray();
-    }
-    return await DB.db.chatMessages.toArray();
+  static async getProjectChatMessages(projectId: string): Promise<ChatMessage[]> {
+    return await db.chats.where('projectId').equals(projectId).sortBy('timestamp');
   }
 
-  static async addChatMessage(message: Omit<DB.ChatMessageDB, 'id'>): Promise<string> {
-    return await DB.db.chatMessages.add(message as DB.ChatMessageDB);
+  static async addChatMessage(message: ChatMessage): Promise<string> {
+    return await db.chats.add(message);
   }
 
-  static async updateChatMessage(id: string, updates: Partial<DB.ChatMessageDB>): Promise<void> {
-    await DB.db.chatMessages.update(id, updates);
+  static async updateChatMessage(id: string, updates: Partial<ChatMessage>): Promise<void> {
+    await db.chats.update(id, updates);
   }
 
   static async deleteChatMessage(id: string): Promise<void> {
-    await DB.db.chatMessages.delete(id);
+    await db.chats.delete(id);
   }
 
-  // ==================== VECTOR INDEXES ====================
-  static async getVectorIndex(id: string): Promise<DB.VectorIndexDB | undefined> {
-    return await DB.db.vectorIndexes.get(id);
+  // ==================== ACCOUNTS ====================
+  static async getAccount(id: string): Promise<Account | undefined> {
+    return await db.accounts.get(id);
   }
 
-  static async getAllVectorIndexes(): Promise<DB.VectorIndexDB[]> {
-    return await DB.db.vectorIndexes.toArray();
+  static async getAllAccounts(): Promise<Account[]> {
+    return await db.accounts.toArray();
   }
 
-  static async addVectorIndex(index: Omit<DB.VectorIndexDB, 'id'>): Promise<string> {
-    return await DB.db.vectorIndexes.add(index as DB.VectorIndexDB);
-  }
-
-  static async updateVectorIndex(id: string, updates: Partial<DB.VectorIndexDB>): Promise<void> {
-    await DB.db.vectorIndexes.update(id, updates);
-  }
-
-  static async deleteVectorIndex(id: string): Promise<void> {
-    await DB.db.vectorIndexes.delete(id);
-  }
-
-  // ==================== INDEX ENTRIES ====================
-  static async getIndexEntry(id: string): Promise<DB.IndexEntryDB | undefined> {
-    return await DB.db.indexEntries.get(id);
-  }
-
-  static async getAllIndexEntries(): Promise<DB.IndexEntryDB[]> {
-    return await DB.db.indexEntries.toArray();
-  }
-
-  static async addIndexEntry(entry: Omit<DB.IndexEntryDB, 'id'>): Promise<string> {
-    return await DB.db.indexEntries.add(entry as DB.IndexEntryDB);
-  }
-
-  static async updateIndexEntry(id: string, updates: Partial<DB.IndexEntryDB>): Promise<void> {
-    await DB.db.indexEntries.update(id, updates);
-  }
-
-  static async deleteIndexEntry(id: string): Promise<void> {
-    await DB.db.indexEntries.delete(id);
-  }
-
-  // ==================== PERFORMANCE METRICS ====================
-  static async getPerformanceMetric(id: string): Promise<DB.PerformanceMetricDB | undefined> {
-    return await DB.db.performanceMetrics.get(id);
-  }
-
-  static async getPerformanceMetrics(options: {
-    type?: string;
-    service?: string;
-    startTime?: Date;
-    endTime?: Date;
-    limit?: number;
-  } = {}): Promise<DB.PerformanceMetricDB[]> {
-    let query = DB.db.performanceMetrics.toCollection();
-
-    if (options.type) {
-      query = query.filter(metric => metric.type === options.type);
+  static async getActiveAccounts(providerId?: string): Promise<Account[]> {
+    if (providerId) {
+      return await db.accounts
+        .where('providerId').equals(providerId)
+        .and(acc => acc.isActive)
+        .toArray();
     }
+    return await db.accounts.where('isActive').equals(1).toArray();
+  }
 
-    if (options.service) {
-      query = query.filter(metric => metric.service === options.service);
+  static async addAccount(account: Account): Promise<string> {
+    return await db.accounts.add(account);
+  }
+
+  static async updateAccount(id: string, updates: Partial<Account>): Promise<void> {
+    await db.accounts.update(id, updates);
+  }
+
+  static async deleteAccount(id: string): Promise<void> {
+    await db.accounts.delete(id);
+  }
+
+  // ==================== TODOS ====================
+  static async getTodo(id: string): Promise<Todo | undefined> {
+    return await db.todos.get(id);
+  }
+
+  static async getProjectTodos(projectId: string): Promise<Todo[]> {
+    return await db.todos.where('projectId').equals(projectId).sortBy('createdAt');
+  }
+
+  static async addTodo(todo: Todo): Promise<string> {
+    return await db.todos.add(todo);
+  }
+
+  static async updateTodo(id: string, updates: Partial<Todo>): Promise<void> {
+    await db.todos.update(id, updates);
+  }
+
+  static async deleteTodo(id: string): Promise<void> {
+    await db.todos.delete(id);
+  }
+
+  // ==================== TERMINALS ====================
+  static async getTerminal(id: string): Promise<Terminal | undefined> {
+    return await db.terminals.get(id);
+  }
+
+  static async getProjectTerminals(projectId: string): Promise<Terminal[]> {
+    return await db.terminals.where('projectId').equals(projectId).toArray();
+  }
+
+  static async addTerminal(terminal: Terminal): Promise<string> {
+    return await db.terminals.add(terminal);
+  }
+
+  static async updateTerminal(id: string, updates: Partial<Terminal>): Promise<void> {
+    await db.terminals.update(id, updates);
+  }
+
+  static async deleteTerminal(id: string): Promise<void> {
+    await db.terminals.delete(id);
+  }
+
+  // ==================== MEMORIES ====================
+  static async getMemory(id: string): Promise<Memory | undefined> {
+    return await db.memories.get(id);
+  }
+
+  static async getProjectMemories(projectId: string): Promise<Memory[]> {
+    return await db.memories.where('projectId').equals(projectId).toArray();
+  }
+
+  static async addMemory(memory: Memory): Promise<string> {
+    return await db.memories.add(memory);
+  }
+
+  static async updateMemory(id: string, updates: Partial<Memory>): Promise<void> {
+    await db.memories.update(id, updates);
+  }
+
+  static async deleteMemory(id: string): Promise<void> {
+    await db.memories.delete(id);
+  }
+
+  // ==================== VECTORS ====================
+  static async getVector(id: string): Promise<Vector | undefined> {
+    return await db.vectors.get(id);
+  }
+
+  static async getVectorsByNamespace(namespace: string): Promise<Vector[]> {
+    return await db.vectors.where('namespace').equals(namespace).toArray();
+  }
+
+  static async addVector(vector: Vector): Promise<string> {
+    return await db.vectors.add(vector);
+  }
+
+  static async deleteVector(id: string): Promise<void> {
+    await db.vectors.delete(id);
+  }
+
+  // ==================== SETTINGS ====================
+  static async getSetting(id: string): Promise<Settings | undefined> {
+    return await db.settings.get(id);
+  }
+
+  static async getAllSettings(): Promise<Settings[]> {
+    return await db.settings.toArray();
+  }
+
+  static async getSettingsByCategory(category: Settings['category']): Promise<Settings[]> {
+    return await db.settings.where('category').equals(category).toArray();
+  }
+
+  static async addSetting(setting: Settings): Promise<string> {
+    return await db.settings.add(setting);
+  }
+
+  static async updateSetting(id: string, updates: Partial<Settings>): Promise<void> {
+    await db.settings.update(id, updates);
+  }
+
+  static async deleteSetting(id: string): Promise<void> {
+    await db.settings.delete(id);
+  }
+
+  // ==================== COMMITS ====================
+  static async getCommit(id: string): Promise<Commit | undefined> {
+    return await db.commits.get(id);
+  }
+
+  static async getProjectCommits(projectId: string): Promise<Commit[]> {
+    return await db.commits.where('projectId').equals(projectId).sortBy('timestamp');
+  }
+
+  static async addCommit(commit: Commit): Promise<string> {
+    return await db.commits.add(commit);
+  }
+
+  // ==================== PERFORMANCE ====================
+  static async getPerformanceMetrics(category?: Performance['category']): Promise<Performance[]> {
+    if (category) {
+      return await db.performance.where('category').equals(category).toArray();
     }
-
-    if (options.startTime || options.endTime) {
-      query = query.filter(metric =>
-        metric.timestamp >= (options.startTime || new Date(0)) &&
-        metric.timestamp <= (options.endTime || new Date())
-      );
-    }
-
-    const results = await query.reverse().limit(options.limit || 1000).toArray();
-    return results;
+    return await db.performance.toArray();
   }
 
-  static async addPerformanceMetric(metric: Omit<DB.PerformanceMetricDB, 'id'>): Promise<string> {
-    return await DB.db.performanceMetrics.add(metric as DB.PerformanceMetricDB);
+  static async addPerformanceMetric(metric: Performance): Promise<string> {
+    return await db.performance.add(metric);
   }
 
-  static async deleteOldPerformanceMetrics(cutoffDate: Date): Promise<void> {
-    await DB.db.performanceMetrics.where('timestamp').below(cutoffDate).delete();
+  // ==================== ERRORS ====================
+  static async getError(id: string): Promise<ErrorLog | undefined> {
+    return await db.errors.get(id);
   }
 
-  // ==================== WEB VITALS ====================
-  static async getWebVital(id: string): Promise<DB.WebVitalDB | undefined> {
-    return await DB.db.webVitals.get(id);
+  static async getAllErrors(): Promise<ErrorLog[]> {
+    return await db.errors.orderBy('timestamp').reverse().toArray();
   }
 
-  static async getWebVitals(options: {
-    metric?: string;
-    startTime?: Date;
-    endTime?: Date;
-    limit?: number;
-  } = {}): Promise<DB.WebVitalDB[]> {
-    let query = DB.db.webVitals.toCollection();
-
-    if (options.metric) {
-      query = query.filter(vital => vital.metric === options.metric);
-    }
-
-    if (options.startTime || options.endTime) {
-      query = query.filter(vital =>
-        vital.timestamp >= (options.startTime || new Date(0)) &&
-        vital.timestamp <= (options.endTime || new Date())
-      );
-    }
-
-    const results = await query.reverse().limit(options.limit || 1000).toArray();
-    return results;
+  static async getUnresolvedErrors(): Promise<ErrorLog[]> {
+    return await db.errors.where('resolved').equals(0).toArray();
   }
 
-  static async addWebVital(vital: Omit<DB.WebVitalDB, 'id'>): Promise<string> {
-    return await DB.db.webVitals.add(vital as DB.WebVitalDB);
+  static async addError(error: ErrorLog): Promise<string> {
+    return await db.errors.add(error);
   }
 
-  static async deleteOldWebVitals(cutoffDate: Date): Promise<void> {
-    await DB.db.webVitals.where('timestamp').below(cutoffDate).delete();
+  static async resolveError(id: string): Promise<void> {
+    await db.errors.update(id, { resolved: true });
   }
 
-  // ==================== ERROR LOGS ====================
-  static async getErrorLog(id: string): Promise<DB.ErrorLogDB | undefined> {
-    return await DB.db.errorLogs.get(id);
+  // ==================== UTILITY METHODS ====================
+  static async clearAllData(): Promise<void> {
+    await db.delete();
+    await db.open();
   }
 
-  static async getErrorLogs(options: {
-    level?: string;
-    service?: string;
-    startTime?: Date;
-    endTime?: Date;
-    limit?: number;
-  } = {}): Promise<DB.ErrorLogDB[]> {
-    let query = DB.db.errorLogs.toCollection();
-
-    if (options.level) {
-      query = query.filter(log => log.level === options.level);
-    }
-
-    if (options.service) {
-      query = query.filter(log => log.service === options.service);
-    }
-
-    if (options.startTime || options.endTime) {
-      query = query.filter(log =>
-        log.timestamp >= (options.startTime || new Date(0)) &&
-        log.timestamp <= (options.endTime || new Date())
-      );
-    }
-
-    const results = await query.reverse().limit(options.limit || 1000).toArray();
-    return results;
+  static async exportData(): Promise<string> {
+    const data = {
+      projects: await db.projects.toArray(),
+      files: await db.files.toArray(),
+      chats: await db.chats.toArray(),
+      accounts: await db.accounts.toArray(),
+      todos: await db.todos.toArray(),
+      terminals: await db.terminals.toArray(),
+      memories: await db.memories.toArray(),
+      settings: await db.settings.toArray(),
+      commits: await db.commits.toArray()
+    };
+    return JSON.stringify(data, null, 2);
   }
 
-  static async addErrorLog(error: Omit<DB.ErrorLogDB, 'id'>): Promise<string> {
-    return await DB.db.errorLogs.add(error as DB.ErrorLogDB);
+  static async importData(jsonData: string): Promise<void> {
+    const data = JSON.parse(jsonData);
+    
+    if (data.projects) await db.projects.bulkAdd(data.projects);
+    if (data.files) await db.files.bulkAdd(data.files);
+    if (data.chats) await db.chats.bulkAdd(data.chats);
+    if (data.accounts) await db.accounts.bulkAdd(data.accounts);
+    if (data.todos) await db.todos.bulkAdd(data.todos);
+    if (data.terminals) await db.terminals.bulkAdd(data.terminals);
+    if (data.memories) await db.memories.bulkAdd(data.memories);
+    if (data.settings) await db.settings.bulkAdd(data.settings);
+    if (data.commits) await db.commits.bulkAdd(data.commits);
   }
 
-  static async deleteOldErrorLogs(cutoffDate: Date): Promise<void> {
-    await DB.db.errorLogs.where('timestamp').below(cutoffDate).delete();
+  // Legacy compatibility methods
+  static async getAllAIProviders(): Promise<any[]> {
+    const accounts = await db.accounts.toArray();
+    const providers = new Map<string, any>();
+    
+    accounts.forEach(account => {
+      if (!providers.has(account.providerId)) {
+        providers.set(account.providerId, {
+          id: account.providerId,
+          name: account.providerId,
+          type: account.providerId,
+          status: account.health.status === 'healthy' ? 'connected' : 'error',
+          accounts: []
+        });
+      }
+      providers.get(account.providerId)!.accounts.push(account);
+    });
+    
+    return Array.from(providers.values());
   }
 
-  // ==================== VECTOR DATABASE ====================
-  static async getVectorDatabaseData(): Promise<any> {
-    const data = await DB.db.vectorDatabase.get(1);
-    return data ? data.data : {};
+  static async getAllAgents(): Promise<any[]> {
+    // Return default agents from agentOrchestra
+    return [];
   }
 
-  static async saveVectorDatabaseData(data: any): Promise<void> {
-    await DB.db.vectorDatabase.put({ id: 1, data });
+  static async getAllTasks(): Promise<any[]> {
+    // Tasks are stored in settings with category 'tasks'
+    const taskSettings = await db.settings.where('category').equals('tasks').toArray();
+    return taskSettings.map(s => s.value);
   }
-  static async getTasks(projectId?: string): Promise<DB.TaskDB[]> {
-    if (projectId) {
-      return await DB.db.tasks.where('projectId').equals(projectId).toArray();
-    }
-    return await DB.db.tasks.toArray();
+
+  static async addTask(task: any): Promise<string> {
+    return await db.settings.add({
+      id: `task_${task.id}`,
+      category: 'tasks',
+      key: task.id,
+      value: task,
+      encrypted: false,
+      updatedAt: new Date()
+    });
+  }
+
+  static async updateTask(id: string, updates: any): Promise<void> {
+    await db.settings.update(`task_${id}`, {
+      value: updates,
+      updatedAt: new Date()
+    });
+  }
+
+  static async deleteTask(id: string): Promise<void> {
+    await db.settings.delete(`task_${id}`);
   }
 }

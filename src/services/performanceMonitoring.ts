@@ -133,8 +133,8 @@ export class PerformanceMonitoringService {
       
       if (navigation) {
         const ttfb = navigation.responseStart - navigation.requestStart;
-        const domContentLoaded = navigation.domContentLoadedEventEnd - navigation.navigationStart;
-        const loadComplete = navigation.loadEventEnd - navigation.navigationStart;
+        const domContentLoaded = navigation.domContentLoadedEventEnd - navigation.fetchStart;
+        const loadComplete = navigation.loadEventEnd - navigation.fetchStart;
 
         this.metrics.set('ttfb', ttfb);
         this.metrics.set('domContentLoaded', domContentLoaded);
@@ -147,10 +147,10 @@ export class PerformanceMonitoringService {
     });
   }
 
-  private async recordMetric(category: string, metric: string, value: number): Promise<void> {
+  private async recordMetric(category: any, metric: string, value: number): Promise<void> {
     const record: PerformanceRecord = {
       id: `perf_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      category,
+      category: category as any,
       metric,
       value,
       metadata: {
@@ -167,8 +167,8 @@ export class PerformanceMonitoringService {
   private recordBatteryMetrics(): void {
     if (!this.batteryAPI) return;
 
-    this.recordMetric('battery', 'level', this.batteryAPI.level * 100);
-    this.recordMetric('battery', 'charging', this.batteryAPI.charging ? 1 : 0);
+    this.recordMetric('battery' as any, 'level', this.batteryAPI.level * 100);
+    this.recordMetric('battery' as any, 'charging', this.batteryAPI.charging ? 1 : 0);
   }
 
   private recordMemoryMetrics(): void {
@@ -298,7 +298,7 @@ export class PerformanceMonitoringService {
   }
 
   private calculateBatteryUsage(records: PerformanceRecord[]) {
-    const batteryRecords = records.filter(r => r.category === 'battery');
+    const batteryRecords = records.filter(r => r.category === 'battery' as any);
     const levelRecords = batteryRecords.filter(r => r.metric === 'level').map(r => r.value);
 
     return {

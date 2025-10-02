@@ -17,8 +17,8 @@ interface GoogleUserInfo {
 }
 
 export class RealOAuthService {
-  private readonly CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
-  private readonly CLIENT_SECRET = import.meta.env.VITE_GOOGLE_CLIENT_SECRET || '';
+  private readonly CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
+  private readonly CLIENT_SECRET = (import.meta as any).env?.VITE_GOOGLE_CLIENT_SECRET || '';
   private readonly REDIRECT_URI = `${window.location.origin}/oauth/callback`;
   private readonly SCOPES = [
     'https://www.googleapis.com/auth/generative.language',

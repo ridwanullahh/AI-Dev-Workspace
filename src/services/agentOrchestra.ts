@@ -577,14 +577,57 @@ Please handle the deployment requirements. Provide:
 
   // Worker Management
   private async createAgentWorker(agent: Agent, task: Task): Promise<Worker> {
-    // In a real implementation, this would create a Web Worker
-    // For now, we simulate worker behavior
-    return {
-      postMessage: (data: any) => console.log('Worker message:', data),
-      terminate: () => console.log('Worker terminated'),
-      onmessage: null,
-      onerror: null
-    } as any;
+    const worker = new Worker(new URL('../workers/agentWorker.ts', import.meta.url), {
+      type: 'module'
+    });
+
+    // Set up worker message handler
+    worker.onmessage = (event) => {
+      this.handleWorkerMessage(event.data, task.id);
+    };
+
+    worker.onerror = (error) => {
+      console.error('Worker error:', error);
+      this.handleWorkerError(task.id, error);
+    };
+
+    return worker;
+  }
+
+  private handleWorkerMessage(message: any, taskId: string) {
+    const task = this.taskQueue.find(t => t.id === taskId);
+    if (!task) return;
+
+    switch (message.type) {
+      case 'task-started':
+        console.log(`Task ${taskId} started`);
+        break;
+
+      case 'task-progress':
+        console.log(`Task ${taskId} progress: ${message.progress}%`);
+        break;
+
+      case 'task-completed':
+        task.status = 'completed';
+        task.completedAt = new Date();
+        task.artifacts = message.artifacts || [];
+        this.saveTaskToDatabase(task);
+        break;
+
+      case 'task-failed':
+        task.status = 'failed';
+        this.saveTaskToDatabase(task);
+        console.error(`Task ${taskId} failed:`, message.error);
+        break;
+    }
+  }
+
+  private handleWorkerError(taskId: string, error: ErrorEvent) {
+    const task = this.taskQueue.find(t => t.id === taskId);
+    if (task) {
+      task.status = 'failed';
+      this.saveTaskToDatabase(task);
+    }
   }
 
   // Database Operations

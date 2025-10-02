@@ -2,7 +2,8 @@ import React, { Component, ReactNode } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './card';
 import { Button } from './button';
 import { AlertTriangle, RefreshCw, Home, Bug } from 'lucide-react';
-import { performanceMonitor } from '../../../services/performanceMonitor';
+import { db } from '../../database/schema';
+import type { ErrorLog } from '../../database/schema';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -37,54 +38,42 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+  async componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     this.setState({
       error,
       errorInfo
     });
 
-    // Log error to performance monitoring system
-    performanceMonitor.recordMetric({
-      type: 'error_boundary',
-      service: 'ui',
-      value: 1,
-      unit: 'count',
-      metadata: {
-        errorId: this.state.errorId,
-        errorMessage: error.message,
-        componentStack: errorInfo.componentStack,
-        errorBoundary: 'main'
-      }
-    });
+    // Log error to database
+    try {
+      const errorLog: ErrorLog = {
+        id: this.state.errorId || `error_${Date.now()}`,
+        type: 'error',
+        category: 'ui',
+        message: error.message,
+        stack: error.stack,
+        metadata: {
+          componentStack: errorInfo.componentStack,
+          userAgent: navigator.userAgent,
+          url: window.location.href,
+          timestamp: Date.now()
+        },
+        resolved: false,
+        timestamp: new Date()
+      };
 
-    // Report error to logging system
-    performanceMonitor.logError({
-      level: 'error',
-      message: `React Error Boundary: ${error.message}`,
-      stack: error.stack,
-      service: 'ui',
-      component: 'ErrorBoundary',
-      url: window.location.href,
-      metadata: {
-        errorId: this.state.errorId,
-        componentStack: errorInfo.componentStack,
-        userAgent: navigator.userAgent,
-        timestamp: new Date().toISOString()
-      }
-    });
+      await db.errors.add(errorLog);
+    } catch (dbError) {
+      console.error('Failed to log error to database:', dbError);
+    }
 
     // Call custom error handler if provided
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
 
-    // Send error report to external service (if configured)
-    this.sendErrorReport(error, errorInfo);
-  }
-
-  private async sendErrorReport(error: Error, errorInfo: React.ErrorInfo) {
+    // Store in local storage as backup
     try {
-      // This could be integrated with services like Sentry, Rollbar, etc.
       const errorReport = {
         id: this.state.errorId,
         message: error.message,
@@ -92,15 +81,13 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         componentStack: errorInfo.componentStack,
         url: window.location.href,
         userAgent: navigator.userAgent,
-        timestamp: new Date().toISOString(),
-        severity: 'high'
+        timestamp: new Date().toISOString()
       };
 
-      // Store in local storage as backup
       const existingReports = JSON.parse(localStorage.getItem('errorReports') || '[]');
       existingReports.push(errorReport);
       if (existingReports.length > 50) {
-        existingReports.splice(0, existingReports.length - 50); // Keep last 50 reports
+        existingReports.splice(0, existingReports.length - 50);
       }
       localStorage.setItem('errorReports', JSON.stringify(existingReports));
 
@@ -123,18 +110,23 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     window.location.href = '/';
   };
 
-  private handleReportIssue = () => {
+  private handleReportIssue = async () => {
     const errorReport = {
       errorId: this.state.errorId,
       message: this.state.error?.message,
+      stack: this.state.error?.stack,
+      componentStack: this.state.errorInfo?.componentStack,
       timestamp: new Date().toISOString(),
-      url: window.location.href
+      url: window.location.href,
+      userAgent: navigator.userAgent
     };
 
-    // Copy error details to clipboard
-    navigator.clipboard.writeText(JSON.stringify(errorReport, null, 2))
-      .then(() => alert('Error details copied to clipboard'))
-      .catch(() => alert('Failed to copy error details'));
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(errorReport, null, 2));
+      alert('Error details copied to clipboard! Please paste in a GitHub issue.');
+    } catch {
+      alert('Failed to copy error details');
+    }
   };
 
   render() {
@@ -152,17 +144,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 <div>
                   <CardTitle className="text-2xl">Something went wrong</CardTitle>
                   <CardDescription>
-                    An unexpected error occurred. Our team has been notified.
+                    An unexpected error occurred. The error has been logged.
                   </CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-6">
-              {process.env.NODE_ENV !== 'production' && this.state.error && (
+              {this.state.error && (
                 <div className="bg-muted p-4 rounded-lg">
                   <h3 className="font-semibold text-sm mb-2 flex items-center gap-2">
                     <Bug className="h-4 w-4" />
-                    Error Details (Development)
+                    Error Details
                   </h3>
                   <pre className="text-xs overflow-auto max-h-40 bg-background p-2 rounded border">
                     {this.state.error.message}
@@ -190,7 +182,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
               <div className="text-sm text-muted-foreground">
                 <p>Error ID: {this.state.errorId}</p>
-                <p>If this problem persists, please contact support with the error ID above.</p>
+                <p>If this problem persists, please report it with the error ID above.</p>
               </div>
             </CardContent>
           </Card>
@@ -204,22 +196,29 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
 // Hook for functional components to use error boundary
 export const useErrorHandler = () => {
-  return (error: Error, errorInfo: React.ErrorInfo) => {
+  return async (error: Error, errorInfo: React.ErrorInfo) => {
     console.error('Error caught by hook:', error, errorInfo);
 
-    // Report error using performance monitor
-    performanceMonitor.logError({
-      level: 'error',
-      message: `Hook Error: ${error.message}`,
-      stack: error.stack,
-      service: 'ui',
-      component: 'useErrorHandler',
-      url: window.location.href,
-      metadata: {
-        componentStack: errorInfo.componentStack,
-        hookError: true
-      }
-    });
+    // Log to database
+    try {
+      const errorLog: ErrorLog = {
+        id: `error_hook_${Date.now()}`,
+        type: 'error',
+        category: 'ui',
+        message: error.message,
+        stack: error.stack,
+        metadata: {
+          componentStack: errorInfo.componentStack,
+          hookError: true
+        },
+        resolved: false,
+        timestamp: new Date()
+      };
+
+      await db.errors.add(errorLog);
+    } catch (dbError) {
+      console.error('Failed to log error:', dbError);
+    }
   };
 };
 

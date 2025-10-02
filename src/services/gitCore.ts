@@ -37,9 +37,14 @@ export class GitCoreService {
   }
 
   private async initializeFS() {
-    // Initialize filesystem for git operations
-    // This would use OPFS in production
-    this.fs = await import('@isomorphic-git/lightning-fs');
+    // Use browser FileSystem API or fallback
+    if ('storage' in navigator && 'getDirectory' in navigator.storage) {
+      const root = await navigator.storage.getDirectory();
+      this.fs = root;
+    } else {
+      // Fallback to memory-based filesystem
+      this.fs = new Map();
+    }
   }
 
   // Repository lifecycle
