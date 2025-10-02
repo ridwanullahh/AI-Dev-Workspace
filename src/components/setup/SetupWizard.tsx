@@ -5,9 +5,9 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { CheckCircle, ArrowRight, ArrowLeft, Key, Shield, Zap } from 'lucide-react';
-import { realOAuthService } from '@/services/realOAuth';
-import { securityVault } from '@/services/securityVault';
-import { performanceMonitoring } from '@/services/performanceMonitoring';
+import { realOAuthService } from '../../services/realOAuth';
+import { securityVault } from '../../services/securityVault';
+import { performanceMonitoring } from '../../services/performanceMonitoring';
 
 interface SetupStep {
   id: string;

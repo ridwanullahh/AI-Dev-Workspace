@@ -1,7 +1,7 @@
 // Build Worker for ESBuild operations
 import { BuildResult } from '../services/devContainer';
 
-declare const self: DedicatedWorkerGlobalScope;
+declare const self: Worker & { onmessage: any; postMessage: any };
 
 // Mock esbuild for demonstration
 const mockEsbuild = {

@@ -395,7 +395,8 @@ export class DeploymentAutomationService {
     };
 
     await devContainer.writeFile(
-      `/workspace/${project.name}/package.json`,
+      project.id,
+      `package.json`,
       JSON.stringify(packageJson, null, 2)
     );
   }
@@ -418,7 +419,8 @@ export class DeploymentAutomationService {
 </html>`;
 
     await devContainer.writeFile(
-      `/workspace/${project.name}/index.html`,
+      project.id,
+      `index.html`,
       indexHtml
     );
   }

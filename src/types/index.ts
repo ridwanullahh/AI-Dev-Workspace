@@ -188,13 +188,15 @@ export interface ChatMessage {
   agentId?: string
   projectId?: string
   timestamp: Date
-  metadata?: {
+  metadata: {
     model?: string
     provider?: string
     tokens?: number
     cost?: number
     attachments?: string[]
     source?: string
+    streaming?: boolean
+    tools?: any[]
   }
 }
 
@@ -230,11 +232,13 @@ export interface IndexEntry {
 
 // AI Request/Response types
 export interface AIRequest {
-  messages: Array<{ role: string; content: string }>
-  model?: string
+  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
+  model: string
   temperature?: number
   maxTokens?: number
   provider?: string
+  stream?: boolean
+  tools?: any[]
 }
 
 export interface AIResponse {

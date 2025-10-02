@@ -1,161 +1,211 @@
-import { precacheAndRoute } from 'workbox-precaching'
-import { registerRoute } from 'workbox-routing'
-import { CacheFirst, StaleWhileRevalidate, NetworkFirst } from 'workbox-strategies'
-import { ExpirationPlugin } from 'workbox-expiration'
+// Service Worker for AI Dev Workspace
+// Handles PWA functionality, offline caching, and live preview
 
-// Precache assets
-precacheAndRoute([
-  { url: '/', revision: '1' },
-  { url: '/manifest.json', revision: '1' },
-  { url: '/favicon.ico', revision: '1' },
-  { url: '/apple-touch-icon.png', revision: '1' },
-  { url: '/pwa-192x192.png', revision: '1' },
-  { url: '/pwa-512x512.png', revision: '1' },
-])
+const CACHE_NAME = 'ai-dev-workspace-v1';
+const PREVIEW_CACHE = 'preview-projects';
 
-// Cache static assets
-registerRoute(
-  /\.(?:png|jpg|jpeg|svg|gif|ico|webp|avif)$/,
-  new CacheFirst({
-    cacheName: 'static-assets',
-    plugins: [
-      new ExpirationPlugin({
-        maxEntries: 100,
-        maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-      }),
-    ],
-  })
-)
+// Assets to cache immediately
+const PRECACHE_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json'
+];
 
-// Cache CSS and JS files
-registerRoute(
-  /\.(?:css|js)$/,
-  new StaleWhileRevalidate({
-    cacheName: 'static-resources',
-    plugins: [
-      new ExpirationPlugin({
-        maxEntries: 100,
-        maxAgeSeconds: 24 * 60 * 60, // 24 hours
-      }),
-    ],
-  })
-)
+// Preview project files storage
+const previewProjects = new Map();
 
-// Cache Google Fonts
-registerRoute(
-  /^https:\/\/fonts\.googleapis\.com\/.*/,
-  new CacheFirst({
-    cacheName: 'google-fonts',
-    plugins: [
-      new ExpirationPlugin({
-        maxEntries: 4,
-        maxAgeSeconds: 365 * 24 * 60 * 60, // 365 days
-      }),
-    ],
-  })
-)
+// Install event - cache essential assets
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(PRECACHE_ASSETS);
+    })
+  );
+  self.skipWaiting();
+});
 
-registerRoute(
-  /^https:\/\/fonts\.gstatic\.com\/.*/,
-  new CacheFirst({
-    cacheName: 'google-fonts-static',
-    plugins: [
-      new ExpirationPlugin({
-        maxEntries: 4,
-        maxAgeSeconds: 365 * 24 * 60 * 60, // 365 days
-      }),
-    ],
-  })
-)
-
-// Cache API responses with NetworkFirst strategy
-registerRoute(
-  /\/api\/.*$/,
-  new NetworkFirst({
-    cacheName: 'api-responses',
-    plugins: [
-      new ExpirationPlugin({
-        maxEntries: 50,
-        maxAgeSeconds: 5 * 60, // 5 minutes
-      }),
-    ],
-  })
-)
-
-// Cache performance monitoring data
-registerRoute(
-  ({ url }) => url.pathname.includes('/performance'),
-  new NetworkFirst({
-    cacheName: 'performance-data',
-    plugins: [
-      new ExpirationPlugin({
-        maxEntries: 20,
-        maxAgeSeconds: 30 * 60, // 30 minutes
-      }),
-    ],
-  })
-)
-
-// Cache embedding and vector data
-registerRoute(
-  ({ url }) => url.pathname.includes('/embeddings') || url.pathname.includes('/vectors'),
-  new StaleWhileRevalidate({
-    cacheName: 'vector-data',
-    plugins: [
-      new ExpirationPlugin({
-        maxEntries: 100,
-        maxAgeSeconds: 60 * 60, // 1 hour
-      }),
-    ],
-  })
-)
-
-// Cache code editor assets
-registerRoute(
-  ({ url }) => url.pathname.includes('/monaco') || url.pathname.includes('/editor'),
-  new CacheFirst({
-    cacheName: 'editor-assets',
-    plugins: [
-      new ExpirationPlugin({
-        maxEntries: 200,
-        maxAgeSeconds: 7 * 24 * 60 * 60, // 7 days
-      }),
-    ],
-  })
-)
-
-// Handle offline fallback
-registerRoute(
-  ({ event }) => event.request.mode === 'navigate',
-  async ({ event }) => {
-    try {
-      return await fetch(event.request)
-    } catch (error) {
-      // Return offline page when network fails
-      return caches.match('/offline.html')
-    }
-  }
-)
-
-// Skip waiting and claim clients immediately
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting()
-  }
-})
-
+// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
-})
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME && cacheName !== PREVIEW_CACHE) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+  self.clients.claim();
+});
 
-// Handle background sync for offline actions
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'background-sync') {
-    event.waitUntil(syncOfflineData())
+// Fetch event - serve from cache, fallback to network
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // Handle preview requests
+  if (url.pathname.startsWith('/preview/')) {
+    event.respondWith(handlePreviewRequest(event.request, url));
+    return;
   }
-})
 
-async function syncOfflineData() {
-  // Implement background sync logic here
-  console.log('Background sync triggered')
+  // Handle API requests - always use network
+  if (url.pathname.startsWith('/api/') || 
+      url.hostname.includes('googleapis.com') ||
+      url.hostname.includes('openai.com') ||
+      url.hostname.includes('github.com')) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // Handle static assets with cache-first strategy
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      if (response) {
+        return response;
+      }
+
+      return fetch(event.request).then((response) => {
+        // Cache successful responses
+        if (response && response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return response;
+      });
+    }).catch(() => {
+      // Offline fallback
+      if (event.request.mode === 'navigate') {
+        return caches.match('/index.html');
+      }
+    })
+  );
+});
+
+// Handle preview requests for live preview feature
+async function handlePreviewRequest(request, url) {
+  const pathParts = url.pathname.split('/');
+  const projectId = pathParts[2];
+  const filePath = pathParts.slice(3).join('/') || 'index.html';
+
+  // Get project files from message or cache
+  const projectFiles = previewProjects.get(projectId);
+  
+  if (!projectFiles) {
+    return new Response('Preview not available', { status: 404 });
+  }
+
+  // Serve requested file
+  const fileContent = projectFiles[filePath];
+  
+  if (!fileContent) {
+    // Try index.html for SPA fallback
+    const indexContent = projectFiles['index.html'];
+    if (indexContent) {
+      return new Response(indexContent, {
+        headers: { 'Content-Type': 'text/html' }
+      });
+    }
+    return new Response('File not found', { status: 404 });
+  }
+
+  // Determine content type
+  const contentType = getContentType(filePath);
+  
+  return new Response(fileContent, {
+    headers: { 'Content-Type': contentType }
+  });
 }
+
+// Get content type based on file extension
+function getContentType(filePath) {
+  const ext = filePath.split('.').pop().toLowerCase();
+  const types = {
+    'html': 'text/html',
+    'css': 'text/css',
+    'js': 'application/javascript',
+    'json': 'application/json',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+    'svg': 'image/svg+xml',
+    'ico': 'image/x-icon',
+    'woff': 'font/woff',
+    'woff2': 'font/woff2',
+    'ttf': 'font/ttf',
+    'eot': 'application/vnd.ms-fontobject'
+  };
+  return types[ext] || 'text/plain';
+}
+
+// Message handler for setup commands
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'setup-preview') {
+    const { projectId, files } = event.data;
+    previewProjects.set(projectId, files);
+    
+    // Notify client that preview is ready
+    event.ports[0].postMessage({ ready: true });
+  }
+
+  if (event.data && event.data.type === 'update-preview') {
+    const { projectId, files } = event.data;
+    previewProjects.set(projectId, files);
+    
+    // Broadcast update to all preview windows
+    self.clients.matchAll({ includeUncontrolled: true }).then((clients) => {
+      clients.forEach((client) => {
+        if (client.url.includes(`/preview/${projectId}`)) {
+          client.postMessage({ type: 'reload' });
+        }
+      });
+    });
+  }
+
+  if (event.data && event.data.type === 'clear-preview') {
+    const { projectId } = event.data;
+    previewProjects.delete(projectId);
+  }
+});
+
+// Background sync for offline actions
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-github') {
+    event.waitUntil(syncGitHubChanges());
+  }
+});
+
+async function syncGitHubChanges() {
+  // Get pending changes from IndexedDB
+  // Push to GitHub when online
+  console.log('Syncing GitHub changes...');
+}
+
+// Push notifications (future feature)
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.json() : {};
+  
+  const options = {
+    body: data.body || 'New notification',
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
+    data: data.data || {}
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'AI Dev Workspace', options)
+  );
+});
+
+// Notification click handler
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  
+  event.waitUntil(
+    clients.openWindow(event.notification.data.url || '/')
+  );
+});

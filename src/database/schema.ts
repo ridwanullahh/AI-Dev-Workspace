@@ -43,6 +43,8 @@ export interface Project {
     remoteUrl?: string;
     branch: string;
     lastSync?: Date;
+    githubRepoId?: string;
+    githubRepoName?: string;
   };
   settings: {
     aiProvider: string;
@@ -76,20 +78,53 @@ export interface FileEntry {
 
 export interface ChatMessage {
   id: string;
-  projectId: string;
+  projectId?: string;
   threadId?: string;
   role: 'user' | 'assistant' | 'system';
   content: string;
   agentId?: string;
-  metadata: {
+  metadata?: {
     provider?: string;
     model?: string;
     tokens?: number;
     cost?: number;
     streaming?: boolean;
     tools?: any[];
+    attachments?: string[];
+    source?: string;
   };
   timestamp: Date;
+}
+
+export interface Todo {
+  id: string;
+  projectId: string;
+  title: string;
+  description?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'blocked';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  assignedAgentId?: string;
+  dependencies: string[];
+  dueDate?: Date;
+  completedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface Terminal {
+  id: string;
+  projectId: string;
+  name: string;
+  cwd: string;
+  history: Array<{
+    command: string;
+    output: string;
+    timestamp: Date;
+    exitCode: number;
+  }>;
+  environment: Record<string, string>;
+  isActive: boolean;
+  createdAt: Date;
 }
 
 export interface Memory {
@@ -118,7 +153,7 @@ export interface Vector {
 
 export interface Settings {
   id: string;
-  category: 'general' | 'security' | 'ai' | 'git' | 'ui';
+  category: 'general' | 'security' | 'ai' | 'git' | 'ui' | 'vault' | 'deployment' | 'tasks' | 'local_models' | 'search' | 'citations';
   key: string;
   value: any;
   encrypted: boolean;
@@ -138,7 +173,7 @@ export interface Commit {
 
 export interface Performance {
   id: string;
-  category: 'load' | 'ai' | 'git' | 'ui' | 'memory';
+  category: 'load' | 'ai' | 'git' | 'ui' | 'memory' | 'battery' | 'network';
   metric: string;
   value: number;
   metadata: Record<string, any>;
@@ -168,6 +203,8 @@ export class AIWorkspaceDB extends Dexie {
   commits!: Table<Commit>;
   performance!: Table<Performance>;
   errors!: Table<ErrorLog>;
+  todos!: Table<Todo>;
+  terminals!: Table<Terminal>;
 
   constructor() {
     super('AIWorkspaceDB');
@@ -188,8 +225,9 @@ export class AIWorkspaceDB extends Dexie {
     // Migration hooks
     this.version(2).stores({
       accounts: '++id, providerId, email, isActive, priority, weight, createdAt',
-    }).upgrade(trans => {
-      return trans.accounts.toCollection().modify(account => {
+    }).upgrade(async (trans) => {
+      const accountsTable = trans.table('accounts');
+      await accountsTable.toCollection().modify(account => {
         if (!account.weight) account.weight = 1;
         if (!account.health) {
           account.health = {
@@ -200,6 +238,11 @@ export class AIWorkspaceDB extends Dexie {
           };
         }
       });
+    });
+
+    this.version(3).stores({
+      todos: '++id, projectId, status, priority, assignedAgentId, createdAt, updatedAt',
+      terminals: '++id, projectId, isActive, createdAt'
     });
   }
 }
