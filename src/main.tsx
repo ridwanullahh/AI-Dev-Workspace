@@ -8,7 +8,7 @@ import App from './App'
 import './index.css'
 import { a11y } from './lib/accessibility'
 import { enhancedVectorDatabase } from './services/enhancedVectorDatabase'
-import { featureFlags } from './lib/featureFlags'
+import { featureFlags } from './lib/featureFlags.tsx'
 
 // Initialize accessibility features
 a11y.setupSkipLink();
