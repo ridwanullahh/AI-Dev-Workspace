@@ -43,8 +43,10 @@ export interface Project {
     remoteUrl?: string;
     branch: string;
     lastSync?: Date;
-    githubRepoId?: string;
+    githubRepoId?: number;
     githubRepoName?: string;
+    githubRepoFullName?: string;
+    isConnected: boolean;
   };
   settings: {
     aiProvider: string;
@@ -141,6 +143,39 @@ export interface Memory {
   accessedAt: Date;
 }
 
+export interface AIContext {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  context: string;
+  priority: number;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface ContextMemory {
+  id: string;
+  contextId: string;
+  content: string;
+  embedding?: number[];
+  importance: number;
+  createdAt: Date;
+}
+
+export interface KnowledgeNode {
+  id: string;
+  projectId: string;
+  title: string;
+  content: string;
+  type: 'concept' | 'function' | 'class' | 'pattern' | 'decision';
+  connections: string[];
+  metadata: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface Vector {
   id: string;
   namespace: string;
@@ -205,6 +240,9 @@ export class AIWorkspaceDB extends Dexie {
   errors!: Table<ErrorLog>;
   todos!: Table<Todo>;
   terminals!: Table<Terminal>;
+  aiContexts!: Table<AIContext>;
+  contextMemories!: Table<ContextMemory>;
+  knowledgeNodes!: Table<KnowledgeNode>;
 
   constructor() {
     super('AIWorkspaceDB');
@@ -243,6 +281,12 @@ export class AIWorkspaceDB extends Dexie {
     this.version(3).stores({
       todos: '++id, projectId, status, priority, assignedAgentId, createdAt, updatedAt',
       terminals: '++id, projectId, isActive, createdAt'
+    });
+
+    this.version(4).stores({
+      aiContexts: '++id, projectId, isActive, priority, createdAt, updatedAt',
+      contextMemories: '++id, contextId, importance, createdAt',
+      knowledgeNodes: '++id, projectId, type, createdAt, updatedAt'
     });
   }
 }

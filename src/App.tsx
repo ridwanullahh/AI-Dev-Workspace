@@ -12,13 +12,7 @@ import { ErrorBoundary } from './components/ui/ErrorBoundary'
 // Lazy load page components for better performance and code splitting
 const WorkspacePage = lazy(() => import('./pages/WorkspacePage'))
 const ProjectsPage = lazy(() => import('./pages/EnhancedProjectsPage'))
-const DeploymentPage = lazy(() => import('./pages/DeploymentPage'))
-const MobileComponentsDemo = lazy(() => import('./pages/MobileComponentsDemo'))
-const AgentsPage = lazy(() => import('./pages/AgentsPage'))
-const CodePage = lazy(() => import('./pages/CodePage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
-const CollaborationPage = lazy(() => import('./pages/CollaborationPage'))
-const PerformanceDashboard = lazy(() => import('./pages/PerformanceDashboard'))
 const MemoryPage = lazy(() => import('./pages/MemoryPage'))
 
 function AppContent() {
@@ -54,12 +48,6 @@ function AppContent() {
           <Route path="/" element={<MobileLayout />}>
             <Route index element={<WorkspacePage />} />
             <Route path="/projects" element={<ProjectsPage />} />
-            <Route path="/deployments" element={<DeploymentPage />} />
-            <Route path="/demo" element={<MobileComponentsDemo />} />
-            <Route path="/agents" element={<AgentsPage />} />
-            <Route path="/code" element={<CodePage />} />
-            <Route path="/collaboration" element={<CollaborationPage />} />
-            <Route path="/performance" element={<PerformanceDashboard />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/memory" element={<MemoryPage />} />
           </Route>
