@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { featureFlags } from '../../lib/featureFlags';
+import { featureFlags } from '../../lib/featureFlags.tsx';
 
 describe('FeatureFlagService', () => {
   beforeEach(async () => {
