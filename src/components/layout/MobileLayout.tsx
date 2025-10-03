@@ -29,11 +29,7 @@ interface MobileLayoutProps {
 const navItems = [
   { id: 'workspace', label: 'Workspace', icon: Home, path: '/' },
   { id: 'projects', label: 'Projects', icon: Folder, path: '/projects' },
-  { id: 'deployments', label: 'Deployments', icon: Rocket, path: '/deployments' },
-  { id: 'demo', label: 'UI Demo', icon: Smartphone, path: '/demo' },
-  { id: 'agents', label: 'Agents', icon: Brain, path: '/agents' },
-  { id: 'code', label: 'Code', icon: Code, path: '/code' },
-  { id: 'performance', label: 'Performance', icon: BarChart3, path: '/performance' },
+  { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' }
 ]
 

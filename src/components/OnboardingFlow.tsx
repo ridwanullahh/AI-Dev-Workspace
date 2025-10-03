@@ -221,33 +221,55 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
       case 'github':
         return (
           <div className="space-y-6">
-            <div className="text-center">
-              {currentStep.icon}
-              <h2 className="text-2xl font-bold mt-4">{currentStep.title}</h2>
-              <p className="text-gray-400 mt-2">{currentStep.description}</p>
-            </div>
-
             {githubConnected ? (
-              <div className="bg-green-900/20 border border-green-700 rounded-lg p-6 text-center">
-                <Check className="text-green-400 mx-auto mb-3" size={48} />
-                <p className="text-green-400 font-semibold">GitHub Connected!</p>
-              </div>
+              <>
+                <div className="text-center">
+                  <Check className="text-green-400 mx-auto mb-3" size={48} />
+                  <h2 className="text-2xl font-bold">{currentStep.title}</h2>
+                  <p className="text-gray-400 mt-2">{currentStep.description}</p>
+                </div>
+                <div className="bg-green-900/20 border border-green-700 rounded-lg p-6 text-center">
+                  <p className="text-green-400 font-semibold">GitHub Connected!</p>
+                  <p className="text-sm text-green-200 mt-2">You can now sync repositories and collaborate</p>
+                </div>
+                <button
+                  onClick={() => setStep(step + 1)}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors"
+                >
+                  Continue
+                </button>
+              </>
             ) : (
-              <button
-                onClick={handleGitHubConnect}
-                className="w-full bg-gray-800 hover:bg-gray-700 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-              >
-                <Github size={20} />
-                Connect GitHub Account
-              </button>
+              <>
+                <div className="text-center">
+                  {currentStep.icon}
+                  <h2 className="text-2xl font-bold mt-4">{currentStep.title}</h2>
+                  <p className="text-gray-400 mt-2">{currentStep.description}</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-4 space-y-2 text-sm">
+                  <p className="font-medium">What you can do with GitHub:</p>
+                  <ul className="list-disc list-inside space-y-1 text-gray-400">
+                    <li>Clone and sync repositories</li>
+                    <li>Create and manage pull requests</li>
+                    <li>Push and pull changes</li>
+                    <li>View commit history</li>
+                  </ul>
+                </div>
+                <button
+                  onClick={handleGitHubConnect}
+                  className="w-full bg-gray-800 hover:bg-gray-700 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <Github size={20} />
+                  Connect GitHub Account
+                </button>
+                <button
+                  onClick={() => setStep(step + 1)}
+                  className="w-full text-gray-400 hover:text-white py-2 transition-colors text-sm"
+                >
+                  Skip for now
+                </button>
+              </>
             )}
-
-            <button
-              onClick={() => setStep(step + 1)}
-              className="w-full text-gray-400 hover:text-white py-2 transition-colors text-sm"
-            >
-              Skip for now
-            </button>
           </div>
         );
 

@@ -36,4 +36,32 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Build outputs
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs
+*.log
+
+# OS
+Thumbs.db
+
+# Capacitor
+android/
+ios/
+*.apk
+*.aab
+*.ipa
+
 app-example

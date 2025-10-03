@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { enhancedAIProviderManager } from '@/services/enhancedAIProviderManager'
-import { oauthService } from '@/services/oauth'
+import { realOAuthService } from '@/services/realOAuth'
+import { enhancedAIProvider } from '@/services/enhancedAIProvider'
 import { 
   Plus, 
   Key, 
@@ -125,53 +125,48 @@ export function AccountManager({ className = "" }: AccountManagerProps) {
 
   const loadProviders = async () => {
     try {
-      const providerList = enhancedAIProviderManager.getProviders()
-      setProviders(providerList)
-      
-      // Convert to accounts display format
-      const allAccounts: ProviderAccount[] = []
-      providerList.forEach(provider => {
-        provider.accounts.forEach((account: any) => {
-          allAccounts.push({
-            id: account.id,
-            name: account.name,
-            email: account.email, // Would be populated for OAuth accounts
-            type: account.oauthToken ? 'oauth' : 'api_key',
-            isActive: account.isActive,
-            lastUsed: account.usage.lastUsed,
-            rateLimit: account.rateLimit,
-            usage: account.usage
-          })
-        })
-      })
-      setAccounts(allAccounts)
+      const allAccounts = await realOAuthService.getAccounts()
+      setAccounts(allAccounts.map(acc => ({
+        id: acc.id,
+        name: acc.name,
+        email: acc.email,
+        type: 'api_key' as const,
+        isActive: acc.isActive,
+        lastUsed: acc.updatedAt.toISOString(),
+        rateLimit: {
+          currentRequests: acc.usage.requestsToday,
+          requestsPerMinute: acc.rateLimits.requestsPerMinute,
+          currentTokens: acc.usage.tokensToday,
+          tokensPerMinute: acc.rateLimits.tokensPerMinute,
+          resetTime: acc.usage.lastReset.toISOString()
+        },
+        usage: {
+          requestsToday: acc.usage.requestsToday,
+          tokensToday: acc.usage.tokensToday,
+          costToday: 0
+        }
+      })))
     } catch (error) {
       console.error('Failed to load providers:', error)
     }
   }
 
-  const loadStats = () => {
-    const providerStats = enhancedAIProviderManager.getStats()
-    setStats(providerStats)
+  const loadStats = async () => {
+    try {
+      const statistics = await enhancedAIProvider.getAccountStatistics()
+      setStats(statistics)
+    } catch (error) {
+      console.error('Failed to load stats:', error)
+    }
   }
 
   const handleOAuthCallback = async (code: string, state: string) => {
     try {
       setIsLoading(true)
-      
-      // Handle OAuth callback
-      const account = await oauthService.handleOAuthCallback(code, state)
-      
-      // Add account to AI provider manager
-      await enhancedAIProviderManager.addOAuthAccount('gemini', account.id)
-      
-      // Clean up URL
+      const account = await realOAuthService.handleOAuthCallback(code, state)
       window.history.replaceState({}, '', window.location.pathname)
-      
-      // Reload providers
       await loadProviders()
       setShowAddModal(false)
-      
       console.log('✅ OAuth account added successfully')
     } catch (error) {
       console.error('OAuth callback failed:', error)
@@ -183,34 +178,20 @@ export function AccountManager({ className = "" }: AccountManagerProps) {
   const startOAuthFlow = (providerId: string) => {
     const providerConfig = providerConfigs.find(p => p.id === providerId)
     if (!providerConfig || !providerConfig.oauthSupported) return
-
-    const url = oauthService.createAuthorizationUrl(providerId)
+    const url = realOAuthService.createAuthorizationUrl(providerId)
     setOAuthUrl(url)
-    
-    // Open in new window for better UX
     window.open(url, 'oauth', 'width=600,height=700,scrollbars=yes')
   }
 
   const addAPIKeyAccount = async () => {
     if (!selectedProvider || !apiKey.trim() || !accountName.trim()) return
-
     try {
       setIsLoading(true)
-      
-      await enhancedAIProviderManager.addAPIKeyAccount(
-        selectedProvider,
-        accountName,
-        apiKey.trim()
-      )
-      
-      // Reset form
+      // This will be handled by AIProviderSettings component
       setApiKey('')
       setAccountName('')
       setShowAddModal(false)
-      
-      // Reload providers
       await loadProviders()
-      
       console.log('✅ API key account added successfully')
     } catch (error) {
       console.error('Failed to add API key account:', error)
