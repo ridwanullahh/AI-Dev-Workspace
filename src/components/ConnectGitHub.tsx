@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { githubAuth } from '@/services/githubAuth';
+import { githubAuth } from '../services/githubAuth';
 import { Github, Copy, ExternalLink, CheckCircle, Loader2, QrCode as QrCodeIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 

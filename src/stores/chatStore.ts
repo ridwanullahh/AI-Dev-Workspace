@@ -13,7 +13,7 @@ interface ChatState {
 }
 
 interface ChatActions {
-  sendMessage: (content: string, projectId?: string, agentId?: string) => Promise<void>
+  sendMessage: (content: string, options?: { projectId?: string, agentType?: string }) => Promise<void>
   clearMessages: (projectId?: string) => void
   setProvider: (providerId: string) => void
   setLoading: (loading: boolean) => void
@@ -21,7 +21,9 @@ interface ChatActions {
   addMessage: (message: ChatMessage) => void
   updateStreamingMessage: (content: string) => void
   finishStreaming: () => void;
-  simulateAIResponse: (request: AIRequest, userMessage: ChatMessage, agentId?: string) => Promise<void>;
+  simulateAIResponse: (request: AIRequest, userMessage: ChatMessage, agentType?: string) => Promise<void>;
+  exportChat: () => Promise<string>;
+  importChat: (data: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState & ChatActions>()(
@@ -35,21 +37,24 @@ export const useChatStore = create<ChatState & ChatActions>()(
       isStreaming: false,
 
       // Send a message to AI
-      sendMessage: async (content: string, projectId?: string, agentId?: string) => {
+      sendMessage: async (content: string, options?: { projectId?: string, agentType?: string }) => {
         try {
           set({ isLoading: true, error: null, isStreaming: true, streamingMessage: '' })
           
           const { addMessage, currentProject } = useWorkspaceStore.getState()
+          const projectId = options?.projectId || currentProject?.id
+          const agentType = options?.agentType || 'general'
           
           // Create user message
           const userMessage: ChatMessage = {
             id: `msg_${Date.now()}_user`,
             content,
             role: 'user',
-            projectId: projectId || currentProject?.id,
+            projectId,
             timestamp: new Date(),
             metadata: {
-              provider: get().currentProvider
+              provider: get().currentProvider,
+              agentType
             }
           }
 
@@ -82,7 +87,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
           }
 
           // Simulate AI response (in real implementation, this would call AI provider)
-          await get().simulateAIResponse(request, userMessage, agentId)
+          await get().simulateAIResponse(request, userMessage, agentType)
           
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to send message'
@@ -92,7 +97,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
       },
 
       // Real AI response with streaming
-      simulateAIResponse: async (request: AIRequest, userMessage: ChatMessage, agentId?: string) => {
+      simulateAIResponse: async (request: AIRequest, userMessage: ChatMessage, agentType?: string) => {
         const { addMessage } = useWorkspaceStore.getState()
         
         try {
@@ -121,14 +126,14 @@ export const useChatStore = create<ChatState & ChatActions>()(
             id: `msg_${Date.now()}_ai`,
             content: fullContent,
             role: 'assistant' as const,
-            agentId,
             projectId: userMessage.projectId,
             timestamp: new Date(),
             metadata: {
               model: responseData?.model || request.model,
               provider: responseData?.provider || get().currentProvider,
               tokens: responseData?.usage?.totalTokens || 0,
-              cost: responseData?.cost || 0
+              cost: responseData?.cost || 0,
+              agentType
             }
           }
 
@@ -154,14 +159,14 @@ export const useChatStore = create<ChatState & ChatActions>()(
             id: `msg_${Date.now()}_ai`,
             content: mockResponse,
             role: 'assistant' as const,
-            agentId,
             projectId: userMessage.projectId,
             timestamp: new Date(),
             metadata: {
               model: request.model,
               provider: get().currentProvider,
               tokens: 0,
-              cost: 0
+              cost: 0,
+              agentType
             }
           }
 
@@ -219,6 +224,45 @@ export const useChatStore = create<ChatState & ChatActions>()(
       // Finish streaming and add the final message
       finishStreaming: () => {
         set({ isStreaming: false, streamingMessage: null })
+      },
+
+      // Export chat messages as JSON
+      exportChat: async () => {
+        const state = get()
+        const exportData = {
+          version: '1.0',
+          timestamp: new Date().toISOString(),
+          provider: state.currentProvider,
+          messages: state.messages
+        }
+        return JSON.stringify(exportData, null, 2)
+      },
+
+      // Import chat messages from JSON
+      importChat: async (data: string) => {
+        try {
+          const importData = JSON.parse(data)
+          if (importData.messages && Array.isArray(importData.messages)) {
+            const { db } = await import('../database/schema')
+            
+            // Add imported messages to database
+            for (const message of importData.messages) {
+              await db.chats.add({
+                ...message,
+                id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                timestamp: new Date(message.timestamp)
+              })
+            }
+            
+            // Update store
+            set((state) => ({
+              messages: [...state.messages, ...importData.messages]
+            }))
+          }
+        } catch (error) {
+          console.error('Failed to import chat:', error)
+          throw new Error('Invalid chat export format')
+        }
       }
     }),
     {

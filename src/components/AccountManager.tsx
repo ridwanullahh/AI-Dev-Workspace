@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { oauthService } from '@/services/oauth'
-import { enhancedAIProvider } from '@/services/enhancedAIProvider'
+import { oauthService } from '../services/oauth'
+import { enhancedAIProvider } from '../services/enhancedAIProvider'
 import { 
   Plus, 
   Key, 

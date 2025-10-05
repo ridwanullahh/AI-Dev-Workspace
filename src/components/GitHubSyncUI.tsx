@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { githubSync } from '@/services/githubSync';
+import { githubSync } from '../services/githubSync';
 import { db } from '@/database/schema';
 import type { Project } from '@/database/schema';
 import {

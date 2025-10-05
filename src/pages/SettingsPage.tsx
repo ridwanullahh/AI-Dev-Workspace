@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AIProviderSettings } from '@/components/AIProviderSettings';
 import { ConnectGitHub } from '@/components/ConnectGitHub';
-import { githubAuth } from '@/services/githubAuth';
+import { githubAuth } from '../services/githubAuth';
 import { encryptionService } from '@/database/schema';
 import { Input } from '@/components/ui/input';
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { db } from '@/database/schema';
 import type { Project } from '@/database/schema';
 import { CreateProjectModal } from '@/components/CreateProjectModal';
@@ -8,21 +9,15 @@ import {
   Folder,
   Plus,
   Search,
-  MoreVertical,
-  Calendar,
-  GitBranch,
-  GitCommit,
-  CheckCircle,
-  AlertCircle,
-  Trash2,
-  Settings as SettingsIcon,
-  Github
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SkeletonProjectGrid } from '@/components/SkeletonLoader';
+import { ProjectCard } from '@/components/ProjectCard';
 
 export function EnhancedProjectsPage() {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -30,6 +25,9 @@ export function EnhancedProjectsPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showGitSync, setShowGitSync] = useState(false);
   const [showRepoSelector, setShowRepoSelector] = useState(false);
+  const [sortBy, setSortBy] = useState('updated');
+  const [filterType, setFilterType] = useState('all');
+  const [filterGit, setFilterGit] = useState('all');
 
   useEffect(() => {
     loadProjects();
@@ -89,29 +87,29 @@ export function EnhancedProjectsPage() {
     }
   };
 
-  const filteredProjects = projects.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  let filteredProjects = projects.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.description.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    const matchesType = filterType === 'all' || p.type === filterType;
+    
+    const matchesGit = filterGit === 'all' ||
+      (filterGit === 'connected' && p.gitConfig?.isConnected) ||
+      (filterGit === 'disconnected' && !p.gitConfig?.isConnected);
 
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'web': return '🌐';
-      case 'mobile': return '📱';
-      case 'api': return '🖥️';
-      case 'library': return '📦';
-      default: return '📁';
-    }
-  };
+    return matchesSearch && matchesType && matchesGit;
+  });
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'text-green-500';
-      case 'archived': return 'text-gray-500';
-      case 'template': return 'text-blue-500';
-      default: return 'text-gray-500';
+  // Apply sorting
+  filteredProjects = [...filteredProjects].sort((a, b) => {
+    if (sortBy === 'name') {
+      return a.name.localeCompare(b.name);
+    } else if (sortBy === 'created') {
+      return b.createdAt.getTime() - a.createdAt.getTime();
+    } else {
+      return b.updatedAt.getTime() - a.updatedAt.getTime();
     }
-  };
+  });
 
   if (showGitSync && selectedProject) {
     return (
@@ -168,133 +166,128 @@ export function EnhancedProjectsPage() {
         />
       </div>
 
+      {/* Sorting and Filtering */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="updated">Recently Updated</SelectItem>
+            <SelectItem value="name">Name (A-Z)</SelectItem>
+            <SelectItem value="created">Date Created</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by type" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="web">Web Apps</SelectItem>
+            <SelectItem value="mobile">Mobile Apps</SelectItem>
+            <SelectItem value="api">APIs</SelectItem>
+            <SelectItem value="library">Libraries</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={filterGit} onValueChange={setFilterGit}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="GitHub status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Projects</SelectItem>
+            <SelectItem value="connected">Connected</SelectItem>
+            <SelectItem value="disconnected">Not Connected</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Projects Grid */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-        </div>
+        <SkeletonProjectGrid count={6} />
       ) : filteredProjects.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredProjects.map((project) => (
-            <div
+            <ProjectCard
               key={project.id}
-              className="bg-card rounded-lg p-4 border border-border hover:border-primary/50 transition-colors"
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3 flex-1">
-                  <span className="text-2xl">{getTypeIcon(project.type)}</span>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold truncate">{project.name}</h3>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {project.description || 'No description'}
-                    </p>
-                  </div>
-                </div>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Status and Type */}
-              <div className="flex items-center gap-2 mb-3">
-                <Badge variant="outline" className="text-xs">
-                  {project.type}
-                </Badge>
-                <Badge variant="outline" className={`text-xs ${getStatusColor(project.status)}`}>
-                  {project.status}
-                </Badge>
-                {project.gitConfig?.isConnected && (
-                  <Badge variant="outline" className="text-xs">
-                    <GitBranch className="h-3 w-3 mr-1" />
-                    GitHub
-                  </Badge>
-                )}
-              </div>
-
-              {/* Metadata */}
-              <div className="flex items-center gap-3 text-xs text-muted-foreground mb-4">
-                {project.metadata?.framework && (
-                  <span>{project.metadata.framework}</span>
-                )}
-                <span className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  {new Date(project.updatedAt).toLocaleDateString()}
-                </span>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="flex-1">
-                  <Folder className="h-4 w-4 mr-2" />
-                  Open
-                </Button>
-                {project.gitConfig?.isConnected ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => {
-                      setSelectedProject(project);
-                      setShowGitSync(true);
-                    }}
-                  >
-                    <GitBranch className="h-4 w-4 mr-2" />
-                    Sync
-                  </Button>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => {
-                      setSelectedProject(project);
-                      setShowRepoSelector(true);
-                    }}
-                  >
-                    <Github className="h-4 w-4 mr-2" />
-                    Connect
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDeleteProject(project.id)}
-                >
-                  <Trash2 className="h-4 w-4 text-red-500" />
-                </Button>
-              </div>
-
-              {/* Git Status */}
-              {project.gitConfig?.isConnected && project.gitConfig.lastSync && (
-                <div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="h-3 w-3 text-green-500" />
-                    <span>
-                      Last synced: {new Date(project.gitConfig.lastSync).toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
+              project={project}
+              onDelete={handleDeleteProject}
+              onSync={(p) => {
+                setSelectedProject(p);
+                setShowGitSync(true);
+              }}
+              onConnect={(p) => {
+                setSelectedProject(p);
+                setShowRepoSelector(true);
+              }}
+            />
           ))}
         </div>
-      ) : (
+      ) : searchQuery || filterType !== 'all' || filterGit !== 'all' ? (
         <div className="bg-card rounded-lg p-12 border border-border text-center">
-          <Folder className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-lg font-semibold mb-2">
-            {searchQuery ? 'No projects found' : 'No projects yet'}
-          </h3>
+          <Search className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-semibold mb-2">No projects found</h3>
           <p className="text-muted-foreground mb-6">
-            {searchQuery
-              ? 'Try adjusting your search query'
-              : 'Create your first project to get started'}
+            Try adjusting your search or filters
           </p>
-          {!searchQuery && (
-            <Button onClick={() => setShowCreateModal(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Project
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSearchQuery('');
+              setFilterType('all');
+              setFilterGit('all');
+            }}
+          >
+            Clear Filters
+          </Button>
+        </div>
+      ) : (
+        <div className="bg-card rounded-lg p-12 border-2 border-dashed border-border text-center">
+          <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Folder className="h-10 w-10 text-primary" />
+          </div>
+          <h3 className="text-xl font-bold mb-2">Create Your First Project</h3>
+          <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+            Start building something amazing with AI-powered development tools. 
+            Choose from templates or start from scratch.
+          </p>
+          <Button onClick={() => setShowCreateModal(true)} size="lg">
+            <Plus className="h-5 w-5 mr-2" />
+            Create Project
+          </Button>
+          
+          <div className="mt-8 grid grid-cols-2 gap-4 max-w-md mx-auto text-left">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="text-2xl mb-2">🚀</div>
+              <p className="text-sm font-medium mb-1">Quick Start</p>
+              <p className="text-xs text-muted-foreground">
+                Use templates to get started in seconds
+              </p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="text-2xl mb-2">🤖</div>
+              <p className="text-sm font-medium mb-1">AI-Powered</p>
+              <p className="text-xs text-muted-foreground">
+                Get help from specialized AI agents
+              </p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="text-2xl mb-2">🔄</div>
+              <p className="text-sm font-medium mb-1">Git Integration</p>
+              <p className="text-xs text-muted-foreground">
+                Seamless GitHub sync and collaboration
+              </p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="text-2xl mb-2">📱</div>
+              <p className="text-sm font-medium mb-1">Mobile-First</p>
+              <p className="text-xs text-muted-foreground">
+                Code anywhere, on any device
+              </p>
+            </div>
+          </div>
         </div>
       )}
 

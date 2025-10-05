@@ -25,27 +25,69 @@ interface GitHubUser {
 }
 
 export class GitHubAuthService {
-  private readonly CLIENT_ID = (import.meta as any).env?.VITE_GITHUB_CLIENT_ID || 'Ov23liFZOuwczRGBqhSo';
+  private readonly CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID || 'Ov23liFZOuwczRGBqhSo';
   private readonly SCOPES = ['repo', 'user', 'workflow', 'admin:org'];
   
   async initiateDeviceFlow(): Promise<GitHubDeviceCodeResponse> {
-    const response = await fetch('https://github.com/login/device/code', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        client_id: this.CLIENT_ID,
-        scope: this.SCOPES.join(' ')
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to initiate GitHub device flow');
+    console.log('Initiating GitHub device flow with client ID:', this.CLIENT_ID?.substring(0, 10) + '...');
+    
+    if (!this.CLIENT_ID) {
+      throw new Error('GitHub Client ID is not configured. Please set VITE_GITHUB_CLIENT_ID in your .env file.');
     }
 
-    return await response.json();
+    try {
+      const requestBody = {
+        client_id: this.CLIENT_ID,
+        scope: this.SCOPES.join(' ')
+      };
+      
+      console.log('Sending request to GitHub with scopes:', this.SCOPES.join(' '));
+
+      const response = await fetch('https://github.com/login/device/code', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'AI-Dev-Workspace/1.0'
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      console.log('GitHub API response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('GitHub API error response:', { 
+          status: response.status, 
+          statusText: response.statusText,
+          body: errorText 
+        });
+        
+        // Try to parse error as JSON
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.error_description || errorJson.message || `GitHub API error: ${response.status}`);
+        } catch {
+          throw new Error(`GitHub API returned ${response.status}: ${errorText || response.statusText}`);
+        }
+      }
+
+      const data = await response.json();
+      console.log('GitHub device flow initiated successfully:', {
+        user_code: data.user_code,
+        expires_in: data.expires_in
+      });
+      
+      return data;
+    } catch (error) {
+      console.error('Error initiating GitHub device flow:', error);
+      
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        throw new Error('Network error: Unable to connect to GitHub. Please check your internet connection.');
+      }
+      
+      throw error instanceof Error ? error : new Error('Unknown error occurred while connecting to GitHub');
+    }
   }
 
   async pollForAccessToken(deviceCode: string, interval: number): Promise<string> {
