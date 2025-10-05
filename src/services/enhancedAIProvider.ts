@@ -1,5 +1,5 @@
 import { db, encryptionService } from '../database/schema';
-import { realOAuthService } from './realOAuth';
+import { oauthService } from './oauth';
 import type { Account } from '../database/schema';
 
 interface AIRequest {
@@ -133,7 +133,7 @@ export class EnhancedAIProviderService {
 
   private async selectBestAccount(providerId?: string): Promise<Account | null> {
     const accounts = providerId 
-      ? await realOAuthService.getActiveAccounts(providerId)
+      ? await oauthService.getActiveAccounts(providerId)
       : await db.accounts.where('isActive').equals(1).and(acc => !acc.health.circuitBreakerOpen).toArray();
 
     if (accounts.length === 0) return null;
@@ -146,7 +146,7 @@ export class EnhancedAIProviderService {
       random -= account.weight;
       if (random <= 0) {
         // Refresh token if needed
-        return await realOAuthService.refreshTokenIfNeeded(account);
+        return await oauthService.refreshTokenIfNeeded(account);
       }
     }
 

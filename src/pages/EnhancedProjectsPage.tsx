@@ -3,10 +3,11 @@ import { db } from '@/database/schema';
 import type { Project } from '@/database/schema';
 import { CreateProjectModal } from '@/components/CreateProjectModal';
 import { GitHubSyncUI } from '@/components/GitHubSyncUI';
-import { 
-  Folder, 
-  Plus, 
-  Search, 
+import { GitHubRepoSelector } from '@/components/GitHubRepoSelector';
+import {
+  Folder,
+  Plus,
+  Search,
   MoreVertical,
   Calendar,
   GitBranch,
@@ -14,7 +15,8 @@ import {
   CheckCircle,
   AlertCircle,
   Trash2,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Github
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +29,7 @@ export function EnhancedProjectsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [showGitSync, setShowGitSync] = useState(false);
+  const [showRepoSelector, setShowRepoSelector] = useState(false);
 
   useEffect(() => {
     loadProjects();
@@ -65,6 +68,24 @@ export function EnhancedProjectsPage() {
     } catch (error) {
       console.error('Failed to delete project:', error);
       alert('Failed to delete project');
+    }
+  };
+
+  const handleConnectGitHub = async (project: Project, repo: any) => {
+    try {
+      await db.projects.update(project.id, {
+        'gitConfig.isConnected': true,
+        'gitConfig.remoteUrl': repo.clone_url,
+        'gitConfig.githubRepoId': repo.id,
+        'gitConfig.githubRepoName': repo.name,
+        'gitConfig.githubRepoFullName': repo.full_name,
+      });
+      loadProjects();
+      setShowRepoSelector(false);
+      setSelectedProject(null);
+    } catch (error) {
+      console.error('Failed to connect GitHub repository:', error);
+      alert('Failed to connect GitHub repository');
     }
   };
 
@@ -182,7 +203,7 @@ export function EnhancedProjectsPage() {
                 <Badge variant="outline" className={`text-xs ${getStatusColor(project.status)}`}>
                   {project.status}
                 </Badge>
-                {project.gitConfig.isConnected && (
+                {project.gitConfig?.isConnected && (
                   <Badge variant="outline" className="text-xs">
                     <GitBranch className="h-3 w-3 mr-1" />
                     GitHub
@@ -192,7 +213,7 @@ export function EnhancedProjectsPage() {
 
               {/* Metadata */}
               <div className="flex items-center gap-3 text-xs text-muted-foreground mb-4">
-                {project.metadata.framework && (
+                {project.metadata?.framework && (
                   <span>{project.metadata.framework}</span>
                 )}
                 <span className="flex items-center gap-1">
@@ -207,7 +228,7 @@ export function EnhancedProjectsPage() {
                   <Folder className="h-4 w-4 mr-2" />
                   Open
                 </Button>
-                {project.gitConfig.isConnected && (
+                {project.gitConfig?.isConnected ? (
                   <Button
                     variant="outline"
                     size="sm"
@@ -220,6 +241,19 @@ export function EnhancedProjectsPage() {
                     <GitBranch className="h-4 w-4 mr-2" />
                     Sync
                   </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => {
+                      setSelectedProject(project);
+                      setShowRepoSelector(true);
+                    }}
+                  >
+                    <Github className="h-4 w-4 mr-2" />
+                    Connect
+                  </Button>
                 )}
                 <Button
                   variant="ghost"
@@ -231,7 +265,7 @@ export function EnhancedProjectsPage() {
               </div>
 
               {/* Git Status */}
-              {project.gitConfig.isConnected && project.gitConfig.lastSync && (
+              {project.gitConfig?.isConnected && project.gitConfig.lastSync && (
                 <div className="mt-3 pt-3 border-t border-border text-xs text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <CheckCircle className="h-3 w-3 text-green-500" />
@@ -270,6 +304,27 @@ export function EnhancedProjectsPage() {
           onClose={() => setShowCreateModal(false)}
           onSuccess={handleCreateProject}
         />
+      )}
+
+      {showRepoSelector && selectedProject && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-card rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
+            <h2 className="text-2xl font-bold mb-4">Connect GitHub Repository</h2>
+            <GitHubRepoSelector
+              onSelectRepo={(repo) => handleConnectGitHub(selectedProject, repo)}
+            />
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowRepoSelector(false);
+                setSelectedProject(null);
+              }}
+              className="mt-4 w-full"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
       )}
     </div>
   );

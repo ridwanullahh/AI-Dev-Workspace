@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { db, encryptionService } from '../database/schema';
 import { githubAuth } from '../services/githubAuth';
-import { realOAuthService } from '../services/realOAuth';
+import { oauthService } from '../services/oauth';
 import { ChevronRight, Check, Rocket, Key, Github, Zap } from 'lucide-react';
 
 interface OnboardingFlowProps {
@@ -104,7 +104,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   };
 
   const handleAIProviderAdd = () => {
-    const authUrl = realOAuthService.createAuthorizationUrl('gemini');
+    const authUrl = oauthService.createAuthorizationUrl('gemini');
     window.open(authUrl, '_blank');
     
     // For now, skip to completion

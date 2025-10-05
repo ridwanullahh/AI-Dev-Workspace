@@ -16,7 +16,7 @@ interface GoogleUserInfo {
   picture?: string;
 }
 
-export class RealOAuthService {
+class OAuthService {
   private readonly CLIENT_ID = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID || '';
   private readonly CLIENT_SECRET = (import.meta as any).env?.VITE_GOOGLE_CLIENT_SECRET || '';
   private readonly REDIRECT_URI = `${window.location.origin}/oauth/callback`;
@@ -340,9 +340,9 @@ export class RealOAuthService {
   }
 
   private generateState(): string {
-    return Math.random().toString(36).substring(2, 15) + 
+    return Math.random().toString(36).substring(2, 15) +
            Math.random().toString(36).substring(2, 15);
   }
 }
 
-export const realOAuthService = new RealOAuthService();
+export const oauthService = new OAuthService();

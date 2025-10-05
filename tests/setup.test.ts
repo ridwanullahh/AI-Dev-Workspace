@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { realOAuthService } from '../src/services/realOAuth';
+import { oauthService } from '../src/services/oauth';
 import { securityVault } from '../src/services/securityVault';
 import { enhancedAIProvider } from '../src/services/enhancedAIProvider';
 import { performanceMonitoring } from '../src/services/performanceMonitoring';
@@ -49,7 +49,7 @@ describe('Core Services Integration', () => {
 
   describe('OAuth Service', () => {
     it('should generate valid authorization URL', () => {
-      const url = realOAuthService.createAuthorizationUrl('gemini');
+      const url = oauthService.createAuthorizationUrl('gemini');
       expect(url).toContain('accounts.google.com');
       expect(url).toContain('client_id');
       expect(url).toContain('scope');
@@ -60,7 +60,7 @@ describe('Core Services Integration', () => {
       sessionStorage.setItem('oauth_state', state);
       
       try {
-        await realOAuthService.handleOAuthCallback('test-code', 'wrong-state');
+        await oauthService.handleOAuthCallback('test-code', 'wrong-state');
         expect.fail('Should have thrown error for invalid state');
       } catch (error) {
         expect(error.message).toContain('Invalid OAuth state');

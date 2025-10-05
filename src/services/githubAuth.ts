@@ -184,6 +184,29 @@ export class GitHubAuthService {
       hasWorkflowAccess: scopes.includes('workflow')
     };
   }
+ async getRepositories(page = 1, perPage = 30): Promise<{ repos: any[], hasNextPage: boolean }> {
+   const token = await this.getStoredToken();
+   if (!token) {
+     throw new Error('Not authenticated with GitHub');
+   }
+
+   const response = await fetch(`https://api.github.com/user/repos?page=${page}&per_page=${perPage}&sort=updated`, {
+     headers: {
+       'Authorization': `Bearer ${token}`,
+       'Accept': 'application/vnd.github.v3+json'
+     }
+   });
+
+   if (!response.ok) {
+     throw new Error('Failed to fetch repositories');
+   }
+
+   const repos = await response.json();
+   const linkHeader = response.headers.get('Link');
+   const hasNextPage = linkHeader ? linkHeader.includes('rel="next"') : false;
+
+   return { repos, hasNextPage };
+ }
 }
 
 export const githubAuth = new GitHubAuthService();

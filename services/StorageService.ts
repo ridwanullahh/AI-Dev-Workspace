@@ -11,7 +11,10 @@ import type {
   Performance,
   ErrorLog,
   Todo,
-  Terminal
+  Terminal,
+ AIContext,
+ ContextMemory,
+ KnowledgeNode
 } from '../src/database/schema';
 
 export class StorageService {
@@ -165,11 +168,50 @@ export class StorageService {
   static async deleteTerminal(id: string): Promise<void> {
     await db.terminals.delete(id);
   }
-
-  // ==================== MEMORIES ====================
-  static async getMemory(id: string): Promise<Memory | undefined> {
-    return await db.memories.get(id);
-  }
+  
+   // ==================== AI CONTEXT ====================
+   static async getAIContext(id: string): Promise<AIContext | undefined> {
+     return await db.aiContexts.get(id);
+   }
+ 
+   static async addAIContext(context: AIContext): Promise<string> {
+     return await db.aiContexts.add(context);
+   }
+ 
+   static async updateAIContext(id: string, updates: Partial<AIContext>): Promise<void> {
+     await db.aiContexts.update(id, updates);
+   }
+ 
+   // ==================== CONTEXT MEMORIES ====================
+   static async getContextMemory(id: string): Promise<ContextMemory | undefined> {
+     return await db.contextMemories.get(id);
+   }
+ 
+   static async addContextMemory(memory: ContextMemory): Promise<string> {
+     return await db.contextMemories.add(memory);
+   }
+ 
+   static async updateContextMemory(id: string, updates: Partial<ContextMemory>): Promise<void> {
+     await db.contextMemories.update(id, updates);
+   }
+ 
+   // ==================== KNOWLEDGE NODES ====================
+   static async getKnowledgeNode(id: string): Promise<KnowledgeNode | undefined> {
+     return await db.knowledgeNodes.get(id);
+   }
+ 
+   static async addKnowledgeNode(node: KnowledgeNode): Promise<string> {
+     return await db.knowledgeNodes.add(node);
+   }
+ 
+   static async updateKnowledgeNode(id: string, updates: Partial<KnowledgeNode>): Promise<void> {
+     await db.knowledgeNodes.update(id, updates);
+   }
+  
+    // ==================== MEMORIES ====================
+    static async getMemory(id: string): Promise<Memory | undefined> {
+      return await db.memories.get(id);
+    }
 
   static async getProjectMemories(projectId: string): Promise<Memory[]> {
     return await db.memories.where('projectId').equals(projectId).toArray();
