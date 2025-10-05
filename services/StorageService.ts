@@ -405,4 +405,402 @@ export class StorageService {
   static async deleteTask(id: string): Promise<void> {
     await db.settings.delete(`task_${id}`);
   }
+
+  // Additional methods for AI providers and contexts
+  static async getAllAIAccounts(): Promise<Account[]> {
+    return await db.accounts.toArray();
+  }
+
+  static async getAIAccount(id: string): Promise<Account | undefined> {
+    return await db.accounts.get(id);
+  }
+
+  static async addAIAccount(account: Account): Promise<string> {
+    return await db.accounts.add(account);
+  }
+
+  static async updateAIAccount(id: string, updates: Partial<Account>): Promise<void> {
+    await db.accounts.update(id, updates);
+  }
+
+  static async getAllAIContexts(): Promise<AIContext[]> {
+    return await db.aiContexts.toArray();
+  }
+
+  static async getAllContextMemories(): Promise<ContextMemory[]> {
+    return await db.contextMemories.toArray();
+  }
+
+  static async deleteContextMemory(id: string): Promise<void> {
+    await db.contextMemories.delete(id);
+  }
+
+  static async getAllKnowledgeNodes(): Promise<KnowledgeNode[]> {
+    return await db.knowledgeNodes.toArray();
+  }
+
+  static async deleteKnowledgeNode(id: string): Promise<void> {
+    await db.knowledgeNodes.delete(id);
+  }
+
+  static async getProjectFile(id: string): Promise<FileEntry | undefined> {
+    return await db.files.get(id);
+  }
+
+  static async getAllProjectFiles(): Promise<FileEntry[]> {
+    return await db.files.toArray();
+  }
+
+  static async addProjectFile(file: FileEntry): Promise<string> {
+    return await db.files.add(file);
+  }
+
+  static async updateProjectFile(id: string, updates: Partial<FileEntry>): Promise<void> {
+    await db.files.update(id, updates);
+  }
+
+  static async getTask(id: string): Promise<any> {
+    const setting = await db.settings.get(`task_${id}`);
+    return setting?.value;
+  }
+
+  static async getAgent(id: string): Promise<any> {
+    const setting = await db.settings.get(`agent_${id}`);
+    return setting?.value;
+  }
+
+  static async addAgent(agent: any): Promise<string> {
+    return await db.settings.add({
+      id: `agent_${agent.id}`,
+      category: 'tasks',
+      key: agent.id,
+      value: agent,
+      encrypted: false,
+      updatedAt: new Date()
+    });
+  }
+
+  static async updateAgent(id: string, updates: any): Promise<void> {
+    const setting = await db.settings.get(`agent_${id}`);
+    if (setting) {
+      await db.settings.update(`agent_${id}`, {
+        value: { ...setting.value, ...updates },
+        updatedAt: new Date()
+      });
+    }
+  }
+
+  static async getAIProvider(id: string): Promise<any> {
+    const accounts = await db.accounts.where('providerId').equals(id).toArray();
+    if (accounts.length === 0) return null;
+    
+    return {
+      id,
+      name: id,
+      type: id,
+      accounts,
+      status: accounts.some(a => a.isActive) ? 'active' : 'inactive'
+    };
+  }
+
+  static async updateAIProvider(id: string, updates: any): Promise<void> {
+    // Update all accounts for this provider
+    const accounts = await db.accounts.where('providerId').equals(id).toArray();
+    for (const account of accounts) {
+      await db.accounts.update(account.id, updates);
+    }
+  }
+
+  static async addAIProvider(provider: any): Promise<string> {
+    // Providers are represented by accounts, so this creates a default account
+    return await db.accounts.add({
+      id: `${provider.id}_default`,
+      providerId: provider.id,
+      email: '',
+      name: provider.name || provider.id,
+      encryptedTokens: '',
+      priority: 1,
+      weight: 1,
+      isActive: true,
+      rateLimits: {
+        requestsPerMinute: 60,
+        requestsPerHour: 1000,
+        requestsPerDay: 10000,
+        tokensPerMinute: 150000
+      },
+      usage: {
+        requestsToday: 0,
+        tokensToday: 0,
+        lastReset: new Date()
+      },
+      health: {
+        status: 'healthy',
+        lastCheck: new Date(),
+        errorCount: 0,
+        circuitBreakerOpen: false
+      },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+  }
+
+  static async getRateLimit(accountId: string): Promise<any> {
+    const account = await db.accounts.get(accountId);
+    return account?.rateLimits;
+  }
+
+  static async updateRateLimit(accountId: string, updates: any): Promise<void> {
+    await db.accounts.update(accountId, { rateLimits: updates });
+  }
+
+  static async addRateLimit(accountId: string, rateLimit: any): Promise<string> {
+    await db.accounts.update(accountId, { rateLimits: rateLimit });
+    return accountId;
+  }
+
+  static async getUsage(accountId: string): Promise<any> {
+    const account = await db.accounts.get(accountId);
+    return account?.usage;
+  }
+
+  static async updateUsage(accountId: string, updates: any): Promise<void> {
+    await db.accounts.update(accountId, { usage: updates });
+  }
+
+  static async addUsage(accountId: string, usage: any): Promise<string> {
+    await db.accounts.update(accountId, { usage });
+    return accountId;
+  }
+
+  static async getAllGitRepositories(): Promise<any[]> {
+    const projects = await db.projects.toArray();
+    return projects
+      .filter(p => p.gitConfig?.isConnected)
+      .map(p => ({
+        id: p.id,
+        projectId: p.id,
+        name: p.gitConfig?.githubRepoName || p.name,
+        url: p.gitConfig?.remoteUrl || '',
+        branch: p.gitConfig?.branch || 'main',
+        lastSync: p.gitConfig?.lastSync,
+        isConnected: p.gitConfig?.isConnected || false
+      }));
+  }
+
+  static async getGitRepository(projectId: string): Promise<any> {
+    const project = await db.projects.get(projectId);
+    if (!project) return null;
+    
+    return {
+      id: project.id,
+      projectId: project.id,
+      name: project.gitConfig?.githubRepoName || project.name,
+      url: project.gitConfig?.remoteUrl || '',
+      branch: project.gitConfig?.branch || 'main',
+      lastSync: project.gitConfig?.lastSync,
+      isConnected: project.gitConfig?.isConnected || false
+    };
+  }
+
+  static async addGitRepository(repo: any): Promise<string> {
+    const project = await db.projects.get(repo.projectId);
+    if (project) {
+      await db.projects.update(repo.projectId, {
+        gitConfig: {
+          ...project.gitConfig,
+          remoteUrl: repo.url,
+          branch: repo.branch || 'main',
+          githubRepoName: repo.name,
+          isConnected: true
+        }
+      });
+    }
+    return repo.projectId;
+  }
+
+  static async updateGitRepository(projectId: string, updates: any): Promise<void> {
+    const project = await db.projects.get(projectId);
+    if (project) {
+      await db.projects.update(projectId, {
+        gitConfig: {
+          ...project.gitConfig,
+          ...updates
+        }
+      });
+    }
+  }
+
+  static async getAllAgentConfigs(): Promise<any[]> {
+    return await db.settings.where('category').equals('agents').toArray();
+  }
+
+  static async getAgentConfig(id: string): Promise<any> {
+    const setting = await db.settings.get(`agent_config_${id}`);
+    return setting?.value;
+  }
+
+  static async addAgentConfig(config: any): Promise<string> {
+    return await db.settings.add({
+      id: `agent_config_${config.id}`,
+      category: 'tasks',
+      key: config.id,
+      value: config,
+      encrypted: false,
+      updatedAt: new Date()
+    });
+  }
+
+  static async updateAgentConfig(id: string, updates: any): Promise<void> {
+    await db.settings.update(`agent_config_${id}`, {
+      value: updates,
+      updatedAt: new Date()
+    });
+  }
+
+  static async getAllAgentAssignments(): Promise<any[]> {
+    return await db.settings.where('category').equals('agent_assignments').toArray();
+  }
+
+  static async getAgentAssignment(id: string): Promise<any> {
+    const setting = await db.settings.get(`assignment_${id}`);
+    return setting?.value;
+  }
+
+  static async addAgentAssignment(assignment: any): Promise<string> {
+    return await db.settings.add({
+      id: `assignment_${assignment.id}`,
+      category: 'tasks',
+      key: assignment.id,
+      value: assignment,
+      encrypted: false,
+      updatedAt: new Date()
+    });
+  }
+
+  static async updateAgentAssignment(id: string, updates: any): Promise<void> {
+    await db.settings.update(`assignment_${id}`, {
+      value: updates,
+      updatedAt: new Date()
+    });
+  }
+
+  static async getAgentPerformance(agentId: string): Promise<any> {
+    const setting = await db.settings.get(`performance_${agentId}`);
+    return setting?.value;
+  }
+
+  static async addAgentPerformance(agentId: string, performance: any): Promise<string> {
+    return await db.settings.add({
+      id: `performance_${agentId}`,
+      category: 'tasks',
+      key: agentId,
+      value: performance,
+      encrypted: false,
+      updatedAt: new Date()
+    });
+  }
+
+  static async updateAgentPerformance(agentId: string, updates: any): Promise<void> {
+    await db.settings.update(`performance_${agentId}`, {
+      value: updates,
+      updatedAt: new Date()
+    });
+  }
+
+  static async getAllVectorIndexes(): Promise<any[]> {
+    // Vector indexes are stored in vectors table with special namespace
+    return await db.vectors.where('namespace').equals('_index').toArray();
+  }
+
+  static async getVectorIndex(id: string): Promise<any> {
+    return await db.vectors.get(id);
+  }
+
+  static async addVectorIndex(index: any): Promise<string> {
+    return await db.vectors.add({
+      id: index.id,
+      namespace: '_index',
+      content: JSON.stringify(index),
+      embedding: [],
+      metadata: index,
+      createdAt: new Date()
+    });
+  }
+
+  static async updateVectorIndex(id: string, updates: any): Promise<void> {
+    const vector = await db.vectors.get(id);
+    if (vector) {
+      await db.vectors.update(id, {
+        content: JSON.stringify(updates),
+        metadata: updates
+      });
+    }
+  }
+
+  static async getAllIndexEntries(): Promise<any[]> {
+    return await db.vectors.toArray();
+  }
+
+  static async getIndexEntry(id: string): Promise<any> {
+    return await db.vectors.get(id);
+  }
+
+  static async addIndexEntry(entry: any): Promise<string> {
+    return await db.vectors.add(entry);
+  }
+
+  static async updateIndexEntry(id: string, updates: any): Promise<void> {
+    await db.vectors.update(id, updates);
+  }
+
+  static async getWebVitals(): Promise<any[]> {
+    return await db.performance.where('category').equals('ui').toArray();
+  }
+
+  static async addWebVital(vital: any): Promise<string> {
+    return await db.performance.add({
+      id: `vital_${Date.now()}`,
+      category: 'ui',
+      metric: vital.name,
+      value: vital.value,
+      metadata: vital,
+      timestamp: new Date()
+    });
+  }
+
+  static async getErrorLogs(): Promise<ErrorLog[]> {
+    return await db.errors.toArray();
+  }
+
+  static async addErrorLog(error: ErrorLog): Promise<string> {
+    return await db.errors.add(error);
+  }
+
+  static async deleteOldPerformanceMetrics(before: Date): Promise<void> {
+    const oldMetrics = await db.performance.where('timestamp').below(before).toArray();
+    await db.performance.bulkDelete(oldMetrics.map(m => m.id));
+  }
+
+  static async deleteOldWebVitals(before: Date): Promise<void> {
+    await this.deleteOldPerformanceMetrics(before);
+  }
+
+  static async deleteOldErrorLogs(before: Date): Promise<void> {
+    const oldErrors = await db.errors.where('timestamp').below(before).toArray();
+    await db.errors.bulkDelete(oldErrors.map(e => e.id));
+  }
+
+  static async getVectorDatabaseData(): Promise<any> {
+    const vectors = await db.vectors.toArray();
+    return {
+      vectors,
+      indexes: await this.getAllVectorIndexes()
+    };
+  }
+
+  static async saveVectorDatabaseData(data: any): Promise<void> {
+    if (data.vectors) {
+      await db.vectors.bulkPut(data.vectors);
+    }
+  }
 }

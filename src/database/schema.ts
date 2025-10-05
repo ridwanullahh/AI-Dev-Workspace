@@ -94,6 +94,7 @@ export interface ChatMessage {
     tools?: any[];
     attachments?: string[];
     source?: string;
+    agentType?: string;
   };
   timestamp: Date;
 }

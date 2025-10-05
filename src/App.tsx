@@ -12,6 +12,7 @@ import { ErrorBoundary } from './components/ui/ErrorBoundary'
 // Lazy load page components for better performance and code splitting
 const WorkspacePage = lazy(() => import('./pages/WorkspacePage'))
 const ProjectsPage = lazy(() => import('./pages/EnhancedProjectsPage'))
+const ProjectWorkspacePage = lazy(() => import('./pages/ProjectWorkspacePage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const MemoryPage = lazy(() => import('./pages/MemoryPage'))
 const ChatPage = lazy(() => import('./pages/ChatPage'))
@@ -50,6 +51,7 @@ function AppContent() {
             <Route index element={<WorkspacePage />} />
             <Route path="/workspace" element={<WorkspacePage />} />
             <Route path="/projects" element={<ProjectsPage />} />
+            <Route path="/project/:projectId" element={<ProjectWorkspacePage />} />
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

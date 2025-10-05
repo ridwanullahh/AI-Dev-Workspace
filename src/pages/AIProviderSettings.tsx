@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/database/schema';
 import type { Account } from '@/database/schema';
-import { oauthService } from '@/services/oauth';
+import { oauthService } from '../services/oauth';
 import { Plus, Trash2 } from 'lucide-react';
 
 export function AIProviderSettings() {

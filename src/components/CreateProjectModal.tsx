@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { db } from '@/database/schema';
 import type { Project } from '@/database/schema';
 import { GitHubRepoSelector } from '@/components/GitHubRepoSelector';
-import { templateManager } from '@/services/templateManager';
+import { templateManager } from '../services/templateManager';
 import { 
   Folder, 
   Github, 

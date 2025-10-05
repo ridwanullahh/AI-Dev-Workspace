@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { githubAuth } from '@/services/githubAuth';
+import { githubAuth } from '../services/githubAuth';
 import { useDebounce } from '@/hooks/useDebounce';
 
 interface Repo {
