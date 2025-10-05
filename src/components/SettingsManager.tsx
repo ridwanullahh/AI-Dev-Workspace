@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db, encryptionService } from '../database/schema';
 import type { Settings, Account } from '../database/schema';
-import { realOAuthService } from '../services/realOAuth';
+import { oauthService } from '../services/oauth';
 import { githubAuth } from '../services/githubAuth';
 import { Settings as SettingsIcon, Key, Shield, Palette, Database, Zap } from 'lucide-react';
 
@@ -36,7 +36,7 @@ export function SettingsManager({ onClose }: SettingsManagerProps) {
 
   const handleAddAIAccount = async (provider: string) => {
     if (provider === 'gemini') {
-      const authUrl = realOAuthService.createAuthorizationUrl(provider);
+      const authUrl = oauthService.createAuthorizationUrl(provider);
       window.open(authUrl, '_blank');
     }
   };
@@ -91,7 +91,7 @@ export function SettingsManager({ onClose }: SettingsManagerProps) {
                   'bg-red-500'
                 }`} />
                 <button
-                  onClick={() => realOAuthService.deactivateAccount(account.id)}
+                  onClick={() => oauthService.deactivateAccount(account.id)}
                   className="text-sm text-red-400 hover:text-red-300"
                 >
                   Remove

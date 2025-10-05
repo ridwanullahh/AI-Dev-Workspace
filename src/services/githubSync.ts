@@ -1,5 +1,6 @@
 import { db } from '../database/schema';
 import type { Project } from '../database/schema';
+import { gitCore } from './gitCore';
 
 interface GitHubTokenResponse {
   access_token: string;
@@ -214,17 +215,11 @@ export class GitHubSyncService {
     if (!token) throw new Error('GitHub token not found');
 
     try {
-      // This would use isomorphic-git to pull changes
-      // Implementation would involve fetching and merging remote changes
-      console.log('Pulling from GitHub:', project.gitConfig.remoteUrl);
+      await gitCore.pull(projectId);
       
       // Update last sync time
       await db.projects.update(projectId, {
-        gitConfig: {
-          ...project.gitConfig,
-          lastSync: new Date()
-        },
-        updatedAt: new Date()
+        'gitConfig.lastSync': new Date(),
       });
 
     } catch (error) {
@@ -234,9 +229,7 @@ export class GitHubSyncService {
   }
 
   private async pushToGitHub(projectId: string): Promise<void> {
-    // Implementation would use isomorphic-git to push changes
-    // This is a simplified version
-    console.log('Pushing to GitHub for project:', projectId);
+    await gitCore.push(projectId);
   }
 
   // Pull Request operations

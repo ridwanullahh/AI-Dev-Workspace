@@ -72,13 +72,18 @@ export class GitCoreService {
 
   async cloneRepository(url: string, projectId: string, path: string): Promise<void> {
     try {
+      const http = require('isomorphic-git/http/web');
       await git.clone({
         fs: this.fs,
-        http: require('isomorphic-git/http/web'),
+        http,
         dir: path,
         url,
         singleBranch: true,
-        depth: 1
+        depth: 1,
+        onAuth: () => ({
+          username: 'oauth2-access-token',
+          password: this.getGitHubToken(),
+        }),
       });
 
       await this.updateProjectGitConfig(projectId, {
@@ -397,7 +402,50 @@ export class GitCoreService {
     }
   }
 
+  async pull(projectId: string): Promise<void> {
+    const project = await db.projects.get(projectId);
+    if (!project) throw new Error('Project not found');
+    const http = require('isomorphic-git/http/web');
+    await git.pull({
+      fs: this.fs,
+      http,
+      dir: project.gitConfig.localPath,
+      ref: project.gitConfig.branch,
+      singleBranch: true,
+      author: {
+        name: 'AI Dev Workspace',
+        email: 'dev@aiworkspace.app',
+      },
+      onAuth: () => ({
+        username: 'oauth2-access-token',
+        password: this.getGitHubToken(),
+      }),
+    });
+  }
+
+  async push(projectId: string): Promise<void> {
+    const project = await db.projects.get(projectId);
+    if (!project) throw new Error('Project not found');
+    const http = require('isomorphic-git/http/web');
+    await git.push({
+      fs: this.fs,
+      http,
+      dir: project.gitConfig.localPath,
+      ref: project.gitConfig.branch,
+      onAuth: () => ({
+        username: 'oauth2-access-token',
+        password: this.getGitHubToken(),
+      }),
+    });
+  }
+
   // Utility methods
+  private async getGitHubToken(): Promise<string> {
+    const setting = await db.settings.get('github_access_token');
+    if (!setting) throw new Error('GitHub token not found');
+    return setting.value;
+  }
+
   private async getFileContent(repoPath: string, filepath: string, ref: string): Promise<string> {
     try {
       if (ref === 'workdir') {
@@ -407,7 +455,7 @@ export class GitCoreService {
           fs: this.fs,
           dir: repoPath,
           oid: ref,
-          filepath
+          filepath,
         });
         return new TextDecoder().decode(blob);
       }
@@ -419,7 +467,7 @@ export class GitCoreService {
   private async updateProjectGitConfig(projectId: string, gitConfig: any): Promise<void> {
     await db.projects.update(projectId, {
       gitConfig,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
   }
 

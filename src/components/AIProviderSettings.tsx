@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { realOAuthService } from '@/services/realOAuth';
+import { oauthService } from '@/services/oauth';
 import { enhancedAIProvider } from '@/services/enhancedAIProvider';
 import { db, encryptionService } from '@/database/schema';
 import type { Account } from '@/database/schema';
@@ -105,7 +105,7 @@ export function AIProviderSettings() {
 
   const loadAccounts = async () => {
     try {
-      const allAccounts = await realOAuthService.getAccounts();
+      const allAccounts = await oauthService.getAccounts();
       setAccounts(allAccounts);
     } catch (error) {
       console.error('Failed to load accounts:', error);
@@ -128,7 +128,7 @@ export function AIProviderSettings() {
     }
 
     try {
-      const authUrl = realOAuthService.createAuthorizationUrl(providerId);
+      const authUrl = oauthService.createAuthorizationUrl(providerId);
       window.open(authUrl, 'oauth', 'width=600,height=700,scrollbars=yes');
       
       setShowAddModal(false);
@@ -209,7 +209,7 @@ export function AIProviderSettings() {
     if (!confirm('Are you sure you want to remove this account?')) return;
 
     try {
-      await realOAuthService.removeAccount(accountId);
+      await oauthService.removeAccount(accountId);
       await loadAccounts();
       alert('Account removed successfully');
     } catch (error) {
@@ -221,7 +221,7 @@ export function AIProviderSettings() {
   const handleToggleAccount = async (accountId: string, isActive: boolean) => {
     try {
       if (isActive) {
-        await realOAuthService.deactivateAccount(accountId);
+        await oauthService.deactivateAccount(accountId);
       } else {
         await db.accounts.update(accountId, {
           isActive: true,
@@ -237,7 +237,7 @@ export function AIProviderSettings() {
   const handleTestConnection = async (account: Account) => {
     try {
       setIsLoading(true);
-      const isHealthy = await realOAuthService.healthCheckAccount(account);
+      const isHealthy = await oauthService.healthCheckAccount(account);
       
       if (isHealthy) {
         alert('Connection test successful!');

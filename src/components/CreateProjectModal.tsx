@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { db } from '@/database/schema';
 import type { Project } from '@/database/schema';
 import { GitHubRepoSelector } from '@/components/GitHubRepoSelector';
+import { templateManager } from '@/services/templateManager';
 import { 
   Folder, 
   Github, 
@@ -49,7 +50,7 @@ export function CreateProjectModal({ onClose, onSuccess }: CreateProjectModalPro
   const [description, setDescription] = useState('');
   const [projectType, setProjectType] = useState<'web' | 'mobile' | 'api' | 'library' | 'other'>('web');
   const [selectedTemplate, setSelectedTemplate] = useState('blank');
-  const [createMethod, setCreateMethod] = useState<'local' | 'github' | 'clone'>('local');
+  const [createMethod, setCreateMethod] = useState<'local' | 'github' | 'clone' | 'template'>('local');
   const [selectedRepo, setSelectedRepo] = useState<any>(null);
   const [initGit, setInitGit] = useState(true);
 
@@ -95,6 +96,8 @@ export function CreateProjectModal({ onClose, onSuccess }: CreateProjectModalPro
 
       await db.projects.add(project);
       
+      await templateManager.createProjectFromTemplate(project, selectedTemplate);
+
       // If GitHub repo is selected, mark it as connected in settings
       if (selectedRepo) {
         await db.settings.put({
@@ -163,6 +166,14 @@ export function CreateProjectModal({ onClose, onSuccess }: CreateProjectModalPro
                 <Package className="h-6 w-6 mb-2" />
                 <span className="text-xs">Clone Repo</span>
               </Button>
+              <Button
+                variant={createMethod === 'template' ? 'default' : 'outline'}
+                onClick={() => setCreateMethod('template')}
+                className="flex flex-col h-24 justify-center"
+              >
+                <FileText className="h-6 w-6 mb-2" />
+                <span className="text-xs">From Template</span>
+              </Button>
             </div>
           </div>
 
@@ -211,7 +222,7 @@ export function CreateProjectModal({ onClose, onSuccess }: CreateProjectModalPro
             </div>
 
             {/* Template Selection (only for local projects) */}
-            {createMethod === 'local' && (
+            {(createMethod === 'local' || createMethod === 'template') && (
               <div>
                 <label className="text-sm font-medium mb-3 block">Template</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -244,7 +255,7 @@ export function CreateProjectModal({ onClose, onSuccess }: CreateProjectModalPro
                   {createMethod === 'github' ? 'Select Repository' : 'Repository to Clone'}
                 </label>
                 <GitHubRepoSelector
-                  onSelect={(repo) => {
+                  onSelectRepo={(repo) => {
                     setSelectedRepo(repo);
                     if (!projectName) {
                       setProjectName(repo.name);
@@ -253,7 +264,6 @@ export function CreateProjectModal({ onClose, onSuccess }: CreateProjectModalPro
                       setDescription(repo.description);
                     }
                   }}
-                  selectedRepoId={selectedRepo?.id}
                 />
                 {selectedRepo && (
                   <div className="mt-3 p-3 bg-primary/10 border border-primary/20 rounded-lg">

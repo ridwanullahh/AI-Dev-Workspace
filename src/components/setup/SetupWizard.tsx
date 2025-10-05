@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { CheckCircle, ArrowRight, ArrowLeft, Key, Shield, Zap } from 'lucide-react';
-import { realOAuthService } from '../../services/realOAuth';
+import { oauthService } from '../../services/oauth';
 import { securityVault } from '../../services/securityVault';
 import { performanceMonitoring } from '../../services/performanceMonitoring';
 
@@ -152,13 +152,13 @@ const AIProvidersStep: React.FC<SetupStepProps> = ({ onNext, onPrevious, data, s
   const connectGoogleAccount = async () => {
     setIsConnecting(true);
     try {
-      const authUrl = realOAuthService.createAuthorizationUrl('gemini');
+      const authUrl = oauthService.createAuthorizationUrl('gemini');
       window.open(authUrl, '_blank', 'width=500,height=600');
       
       // Listen for OAuth completion
       const handleMessage = async (event: MessageEvent) => {
         if (event.data.type === 'oauth_success') {
-          const account = await realOAuthService.handleOAuthCallback(
+          const account = await oauthService.handleOAuthCallback(
             event.data.code, 
             event.data.state
           );

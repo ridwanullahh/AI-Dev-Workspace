@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { realOAuthService } from '@/services/realOAuth'
+import { oauthService } from '@/services/oauth'
 import { enhancedAIProvider } from '@/services/enhancedAIProvider'
 import { 
   Plus, 
@@ -125,7 +125,7 @@ export function AccountManager({ className = "" }: AccountManagerProps) {
 
   const loadProviders = async () => {
     try {
-      const allAccounts = await realOAuthService.getAccounts()
+      const allAccounts = await oauthService.getAccounts()
       setAccounts(allAccounts.map(acc => ({
         id: acc.id,
         name: acc.name,
@@ -163,7 +163,7 @@ export function AccountManager({ className = "" }: AccountManagerProps) {
   const handleOAuthCallback = async (code: string, state: string) => {
     try {
       setIsLoading(true)
-      const account = await realOAuthService.handleOAuthCallback(code, state)
+      const account = await oauthService.handleOAuthCallback(code, state)
       window.history.replaceState({}, '', window.location.pathname)
       await loadProviders()
       setShowAddModal(false)
@@ -178,7 +178,7 @@ export function AccountManager({ className = "" }: AccountManagerProps) {
   const startOAuthFlow = (providerId: string) => {
     const providerConfig = providerConfigs.find(p => p.id === providerId)
     if (!providerConfig || !providerConfig.oauthSupported) return
-    const url = realOAuthService.createAuthorizationUrl(providerId)
+    const url = oauthService.createAuthorizationUrl(providerId)
     setOAuthUrl(url)
     window.open(url, 'oauth', 'width=600,height=700,scrollbars=yes')
   }
