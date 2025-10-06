@@ -21,8 +21,8 @@ interface ProjectCardProps {
     type: 'react-native' | 'web' | 'node' | 'python' | 'ai-service'
     status: 'active' | 'paused' | 'completed' | 'archived'
     progress: number
-    createdAt: Date
-    updatedAt: Date
+    createdAt: string
+    updatedAt: string
     files: Array<any>
   }
   onSelect: (project: any) => void
@@ -130,16 +130,15 @@ export function ProjectsPage() {
   const [newProjectData, setNewProjectData] = useState({
     name: '',
     description: '',
-    type: 'web' as const,
-    templateId: ''
+    type: 'web' as const
   })
 
   const handleCreateProject = async () => {
     if (!newProjectData.name.trim()) return
 
     try {
-      await createProject({ ...newProjectData, templateId: newProjectData.templateId || undefined })
-      setNewProjectData({ name: '', description: '', type: 'web', templateId: '' })
+      await createProject(newProjectData)
+      setNewProjectData({ name: '', description: '', type: 'web' })
       setShowCreateModal(false)
     } catch (error) {
       console.error('Failed to create project:', error)
@@ -349,5 +348,3 @@ export function ProjectsPage() {
     </div>
   )
 }
-
-export default ProjectsPage;

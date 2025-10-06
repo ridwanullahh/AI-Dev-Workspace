@@ -13,48 +13,46 @@ interface ChatState {
 }
 
 interface ChatActions {
-  sendMessage: (content: string, options?: { projectId?: string, agentType?: string }) => Promise<void>
+  sendMessage: (content: string, projectId?: string, agentId?: string) => Promise<void>
   clearMessages: (projectId?: string) => void
   setProvider: (providerId: string) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
   addMessage: (message: ChatMessage) => void
   updateStreamingMessage: (content: string) => void
-  finishStreaming: () => void;
-  simulateAIResponse: (request: AIRequest, userMessage: ChatMessage, agentType?: string) => Promise<void>;
-  exportChat: () => Promise<string>;
-  importChat: (data: string) => Promise<void>;
+  finishStreaming: () => void
+}
+
+const initialState: ChatState = {
+  messages: [],
+  isLoading: false,
+  error: null,
+  currentProvider: 'gemini',
+  streamingMessage: null,
+  isStreaming: false
 }
 
 export const useChatStore = create<ChatState & ChatActions>()(
   devtools(
     (set, get) => ({
-      messages: [],
-      isLoading: false,
-      error: null,
-      currentProvider: 'gemini',
-      streamingMessage: null,
-      isStreaming: false,
+      ...initialState,
 
       // Send a message to AI
-      sendMessage: async (content: string, options?: { projectId?: string, agentType?: string }) => {
+      sendMessage: async (content: string, projectId?: string, agentId?: string) => {
         try {
           set({ isLoading: true, error: null, isStreaming: true, streamingMessage: '' })
           
           const { addMessage, currentProject } = useWorkspaceStore.getState()
-          const projectId = options?.projectId || currentProject?.id
-          const agentType = options?.agentType || 'general'
           
           // Create user message
           const userMessage: ChatMessage = {
             id: `msg_${Date.now()}_user`,
             content,
             role: 'user',
-            projectId,
-            timestamp: new Date(),
+            projectId: projectId || currentProject?.id,
+            timestamp: new Date().toISOString(),
             metadata: {
-              provider: get().currentProvider,
-              agentType
+              provider: get().currentProvider
             }
           }
 
@@ -68,15 +66,15 @@ export const useChatStore = create<ChatState & ChatActions>()(
           const request: AIRequest = {
             messages: [
               {
-                role: 'system' as const,
+                role: 'system',
                 content: 'You are an AI development assistant. Help the user with their coding and development tasks.'
               },
               ...get().messages.map(msg => ({
-                role: msg.role as 'system' | 'user' | 'assistant',
+                role: msg.role,
                 content: msg.content
               })),
               {
-                role: 'user' as const,
+                role: 'user',
                 content
               }
             ],
@@ -87,7 +85,7 @@ export const useChatStore = create<ChatState & ChatActions>()(
           }
 
           // Simulate AI response (in real implementation, this would call AI provider)
-          await get().simulateAIResponse(request, userMessage, agentType)
+          await get().simulateAIResponse(request, userMessage, agentId)
           
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Failed to send message'
@@ -96,91 +94,53 @@ export const useChatStore = create<ChatState & ChatActions>()(
         }
       },
 
-      // Real AI response with streaming
-      simulateAIResponse: async (request: AIRequest, userMessage: ChatMessage, agentType?: string) => {
+      // Simulate AI response (placeholder for real AI integration)
+      simulateAIResponse: async (request: AIRequest, userMessage: ChatMessage, agentId?: string) => {
         const { addMessage } = useWorkspaceStore.getState()
         
-        try {
-          const { enhancedAIProvider } = await import('../services/enhancedAIProvider')
-          
-          let fullContent = ''
-          let responseData: any = null
-          
-          // Use real streaming API
-          await enhancedAIProvider.sendMessageStream(
-            request,
-            (token: string) => {
-              fullContent += token
-              get().updateStreamingMessage(fullContent)
-            },
-            (response: any) => {
-              responseData = response
-            },
-            (error: Error) => {
-              throw error
-            }
-          )
-          
-          // Create AI response message
-          const aiMessage: ChatMessage = {
-            id: `msg_${Date.now()}_ai`,
-            content: fullContent,
-            role: 'assistant' as const,
-            projectId: userMessage.projectId,
-            timestamp: new Date(),
-            metadata: {
-              model: responseData?.model || request.model,
-              provider: responseData?.provider || get().currentProvider,
-              tokens: responseData?.usage?.totalTokens || 0,
-              cost: responseData?.cost || 0,
-              agentType
-            }
-          }
-
-          // Save to database
-          const { db } = await import('../database/schema')
-          await db.chats.add(aiMessage)
-
-          // Add AI message to store
-          addMessage(aiMessage)
-          set((state) => ({
-            messages: [...state.messages, aiMessage],
-            isLoading: false,
-            isStreaming: false,
-            streamingMessage: null
-          }))
-        } catch (error) {
-          console.error('Failed to get AI response:', error)
-          
-          // Fallback to mock response
-          const mockResponse = "I'm having trouble connecting to the AI service. Please check your API configuration."
-          
-          const aiMessage: ChatMessage = {
-            id: `msg_${Date.now()}_ai`,
-            content: mockResponse,
-            role: 'assistant' as const,
-            projectId: userMessage.projectId,
-            timestamp: new Date(),
-            metadata: {
-              model: request.model,
-              provider: get().currentProvider,
-              tokens: 0,
-              cost: 0,
-              agentType
-            }
-          }
-
-          const { db } = await import('../database/schema')
-          await db.chats.add(aiMessage)
-
-          addMessage(aiMessage)
-          set((state) => ({
-            messages: [...state.messages, aiMessage],
-            isLoading: false,
-            isStreaming: false,
-            streamingMessage: null
-          }))
+        // Simulate typing delay and streaming
+        const responses = [
+          "I understand your request. Let me help you with that.",
+          "That's an interesting question. Here's my analysis:",
+          "I can help you implement this feature. Here's what I suggest:",
+          "Based on your project context, here's my recommendation:",
+          "I'll help you solve this problem step by step."
+        ]
+        
+        const randomResponse = responses[Math.floor(Math.random() * responses.length)]
+        let currentContent = ''
+        
+        // Simulate streaming response
+        for (let i = 0; i <= randomResponse.length; i++) {
+          currentContent = randomResponse.substring(0, i)
+          get().updateStreamingMessage(currentContent)
+          await new Promise(resolve => setTimeout(resolve, 20)) // 20ms per character
         }
+        
+        // Create AI response message
+        const aiMessage: ChatMessage = {
+          id: `msg_${Date.now()}_ai`,
+          content: randomResponse,
+          role: 'assistant',
+          agentId,
+          projectId: userMessage.projectId,
+          timestamp: new Date().toISOString(),
+          metadata: {
+            model: 'gemini-pro',
+            provider: get().currentProvider,
+            tokens: Math.floor(randomResponse.length / 4), // Rough token estimation
+            cost: 0
+          }
+        }
+
+        // Add AI message to store
+        addMessage(aiMessage)
+        set((state) => ({
+          messages: [...state.messages, aiMessage],
+          isLoading: false,
+          isStreaming: false,
+          streamingMessage: null
+        }))
       },
 
       // Clear messages for a specific project or all messages
@@ -224,45 +184,6 @@ export const useChatStore = create<ChatState & ChatActions>()(
       // Finish streaming and add the final message
       finishStreaming: () => {
         set({ isStreaming: false, streamingMessage: null })
-      },
-
-      // Export chat messages as JSON
-      exportChat: async () => {
-        const state = get()
-        const exportData = {
-          version: '1.0',
-          timestamp: new Date().toISOString(),
-          provider: state.currentProvider,
-          messages: state.messages
-        }
-        return JSON.stringify(exportData, null, 2)
-      },
-
-      // Import chat messages from JSON
-      importChat: async (data: string) => {
-        try {
-          const importData = JSON.parse(data)
-          if (importData.messages && Array.isArray(importData.messages)) {
-            const { db } = await import('../database/schema')
-            
-            // Add imported messages to database
-            for (const message of importData.messages) {
-              await db.chats.add({
-                ...message,
-                id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                timestamp: new Date(message.timestamp)
-              })
-            }
-            
-            // Update store
-            set((state) => ({
-              messages: [...state.messages, ...importData.messages]
-            }))
-          }
-        } catch (error) {
-          console.error('Failed to import chat:', error)
-          throw new Error('Invalid chat export format')
-        }
       }
     }),
     {

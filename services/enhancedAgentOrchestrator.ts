@@ -1,6 +1,5 @@
 import { Agent, Task, ChatMessage, TaskResult, AgentPerformance } from './types';
-import { StorageService } from './StorageService';
-import { TaskResultDB, ProjectFileDB } from '../src/database/database';
+import { storageService } from './storage';
 import { aiProviderService } from './aiProvider';
 import { enhancedVectorDatabase } from './enhancedVectorDatabase';
 import { semanticMemoryArchitecture } from './semanticMemory';
@@ -138,9 +137,9 @@ class EnhancedAgentOrchestrator {
 
   private async loadAgents(): Promise<void> {
     try {
-      const agents = await StorageService.getAllAgents();
+      const agents = await storageService.getAgents();
       for (const agent of agents) {
-        this.agents.set(agent.id, agent as any);
+        this.agents.set(agent.id, agent);
       }
       console.log(`Loaded ${agents.length} agents`);
     } catch (error) {
@@ -150,11 +149,11 @@ class EnhancedAgentOrchestrator {
 
   private async loadSpecializations(): Promise<void> {
     try {
-      const specializations = await StorageService.getAllAgentConfigs();
-      for (const spec of specializations) {
-        this.specializations.set(spec.agentId, spec as unknown as AgentSpecialization);
+      const data = await storageService.getVectorDatabaseData();
+      if (data && data.agentSpecializations) {
+        this.specializations = new Map(data.agentSpecializations);
+        console.log(`Loaded ${this.specializations.size} agent specializations`);
       }
-      console.log(`Loaded ${this.specializations.size} agent specializations`);
     } catch (error) {
       console.error('Failed to load specializations:', error);
     }
@@ -162,11 +161,11 @@ class EnhancedAgentOrchestrator {
 
   private async loadCollaborations(): Promise<void> {
     try {
-      const collaborations = await StorageService.getAllAgentAssignments();
-      for (const collab of collaborations) {
-        this.collaborations.set(collab.id, collab as unknown as AgentCollaboration);
+      const data = await storageService.getVectorDatabaseData();
+      if (data && data.collaborations) {
+        this.collaborations = new Map(data.collaborations);
+        console.log(`Loaded ${this.collaborations.size} active collaborations`);
       }
-      console.log(`Loaded ${this.collaborations.size} active collaborations`);
     } catch (error) {
       console.error('Failed to load collaborations:', error);
     }
@@ -202,7 +201,7 @@ class EnhancedAgentOrchestrator {
 
     // Store task
     this.activeTasks.set(task.id, task);
-    await this.saveTask(task);
+    await storageService.saveTask(task);
 
     let assignedAgentId: string;
 
@@ -317,7 +316,7 @@ class EnhancedAgentOrchestrator {
   }
 
   private isTaskTypeMatch(agentRole: string, taskType: string): boolean {
-    const matches: { [key: string]: string[] } = {
+    const matches = {
       'Architecture & Planning': ['analyze', 'design'],
       'Code Generation': ['code', 'test'],
       'UI/UX Design': ['design'],
@@ -469,7 +468,7 @@ class EnhancedAgentOrchestrator {
 
     try {
       task.status = 'in_progress';
-      await this.saveTask(task);
+      await storageService.saveTask(task);
 
       // Check if this is a collaborative task
       const collaboration = Array.from(this.collaborations.values())
@@ -544,7 +543,7 @@ class EnhancedAgentOrchestrator {
     // Final result
     task.result = primaryResult;
     task.status = 'completed';
-    await this.saveTask(task);
+    await storageService.saveTask(task);
   }
 
   private async executeParallelCollaboration(task: Task, primaryAgent: Agent, collaboration: AgentCollaboration): Promise<void> {
@@ -569,7 +568,7 @@ class EnhancedAgentOrchestrator {
     
     task.result = synthesis;
     task.status = 'completed';
-    await this.saveTask(task);
+    await storageService.saveTask(task);
   }
 
   private async executeHierarchicalCollaboration(task: Task, primaryAgent: Agent, collaboration: AgentCollaboration): Promise<void> {
@@ -597,7 +596,7 @@ class EnhancedAgentOrchestrator {
     
     task.result = finalResult;
     task.status = 'completed';
-    await this.saveTask(task);
+    await storageService.saveTask(task);
   }
 
   private async executeConsensusCollaboration(task: Task, primaryAgent: Agent, collaboration: AgentCollaboration): Promise<void> {
@@ -622,7 +621,7 @@ class EnhancedAgentOrchestrator {
     
     task.result = consensusResult;
     task.status = 'completed';
-    await this.saveTask(task);
+    await storageService.saveTask(task);
   }
 
   private async executeIndividualTask(task: Task, agent: Agent): Promise<void> {
@@ -641,7 +640,7 @@ class EnhancedAgentOrchestrator {
     agent.status = 'idle';
     agent.currentTask = undefined;
 
-    await this.saveTask(task);
+    await storageService.saveTask(task);
     await this.saveAgent(agent);
 
     // Update analytics
@@ -695,28 +694,39 @@ class EnhancedAgentOrchestrator {
     let context = '';
 
     // Get project context
-    const project = await StorageService.getProject(task.projectId);
+    const project = await storageService.getProject(task.projectId);
     if (project) {
       context += `Project: ${project.name}\nDescription: ${project.description}\n\n`;
     }
 
-    // Get relevant memories from semantic memory
+    // Get optimized context from context manager
     try {
-      const memoryResults = await semanticMemoryArchitecture.retrieveMemories(task.description, {
-        projectId: task.projectId,
-        limit: 3,
-        threshold: 0.4
-      });
+      const optimizedContext = await contextManagementSystem.getOptimizedContext(
+        `context_${task.projectId}_main`,
+        {
+          query: task.description,
+          maxTokens: 1000,
+          includeTypes: ['messages', 'memories', 'knowledge']
+        }
+      );
 
-      if (memoryResults.memories.length > 0) {
+      if (optimizedContext.messages.length > 0) {
+        context += 'Recent Messages:\n';
+        for (const message of optimizedContext.messages.slice(0, 3)) {
+          context += `- ${message.role}: ${message.content.substring(0, 100)}...\n`;
+        }
+        context += '\n';
+      }
+
+      if (optimizedContext.memories.length > 0) {
         context += 'Relevant Memories:\n';
-        for (const memory of memoryResults.memories) {
-          context += `- [${memory.type}] ${memory.content.substring(0, 150)}...\n`;
+        for (const memory of optimizedContext.memories.slice(0, 2)) {
+          context += `- ${memory.content.substring(0, 100)}...\n`;
         }
         context += '\n';
       }
     } catch (error) {
-      console.error('Failed to retrieve semantic memories:', error);
+      console.error('Failed to get optimized context:', error);
     }
 
     // Get relevant semantic search results
@@ -919,10 +929,10 @@ Please provide your response in a clear, structured format that can be easily un
     const negotiation: AgentNegotiation = {
       id: `negotiation_${task.id}_${Date.now()}`,
       topic: task.title,
-      participants: Array.from(this.agents.keys()),
+      participants: proposals.map((_, index) => this.agents.keys().toArray()[index]),
       proposals: proposals.map((proposal, index) => ({
         id: `proposal_${index}`,
-        agentId: Array.from(this.agents.keys())[index],
+        agentId: this.agents.keys().toArray()[index],
         content: proposal.output,
         confidence: 0.8,
         priority: 1,
@@ -960,8 +970,8 @@ Please provide your response in a clear, structured format that can be easily un
     agent.status = 'error';
     agent.currentTask = undefined;
 
-    await this.saveTask(task);
-await this.saveAgent(agent);
+    await storageService.saveTask(task);
+    await this.saveAgent(agent);
 
     // Send error notification
     await this.sendAgentMessage({
@@ -1172,70 +1182,22 @@ await this.saveAgent(agent);
 
   private async saveOrchestratorData(): Promise<void> {
     try {
-      for (const collaboration of this.collaborations.values()) {
-        const { id, ...collabData } = collaboration;
-        if (await StorageService.getAgentAssignment(id)) {
-          await StorageService.updateAgentAssignment(id, collabData as any);
-        } else {
-          await StorageService.addAgentAssignment(collabData as any);
-        }
-      }
-      for (const specialization of this.specializations.values()) {
-        const { agentId, ...specData } = specialization;
-        if (await StorageService.getAgentConfig(agentId)) {
-          await StorageService.updateAgentConfig(agentId, specData as any);
-        } else {
-          await StorageService.addAgentConfig({ agentId, ...specData } as any);
-        }
-      }
+      const data = await storageService.getVectorDatabaseData() || {};
+      data.collaborations = Array.from(this.collaborations.entries());
+      data.negotiations = Array.from(this.negotiations.entries());
+      data.agentSpecializations = Array.from(this.specializations.entries());
+      data.analytics = this.analytics;
+      
+      await storageService.saveVectorDatabaseData(data);
     } catch (error) {
       console.error('Failed to save orchestrator data:', error);
     }
   }
 
   private async saveAgent(agent: Agent): Promise<void> {
-    const { performance, ...agentData } = agent;
-    if (await StorageService.getAgent(agent.id)) {
-      await StorageService.updateAgent(agent.id, agentData as any);
-    } else {
-      await StorageService.addAgent(agentData as any);
-    }
-    if (performance) {
-      if (await StorageService.getAgentPerformance(agent.id)) {
-        await StorageService.updateAgentPerformance(agent.id, performance);
-      } else {
-        await StorageService.addAgentPerformance({ ...performance, agentId: agent.id });
-      }
-    }
+    await storageService.saveAgent(agent);
   }
 
-  private async saveTask(task: Task): Promise<void> {
-    const { result, ...taskData } = task;
-    let resultDB: TaskResultDB | undefined;
-
-    if (result) {
-      const { files, ...resultData } = result;
-      resultDB = {
-        ...resultData,
-        taskId: task.id,
-        files: files.map(f => ({
-          ...f,
-          projectId: task.projectId,
-        } as ProjectFileDB))
-      };
-    }
-
-    const taskDB = {
-      ...taskData,
-      result: resultDB
-    };
-
-    if (await StorageService.getTask(task.id)) {
-      await StorageService.updateTask(task.id, taskDB);
-    } else {
-      await StorageService.addTask(taskDB);
-    }
-  }
   private calculateSuccessRate(agent: Agent): number {
     return Math.min(agent.performance.successRate + 0.01, 0.99);
   }
@@ -1286,29 +1248,6 @@ await this.saveAgent(agent);
       collaborations,
       recentMessages
     };
-  }
-
-  async getTaskById(taskId: string): Promise<Task | undefined> {
-    if (this.activeTasks.has(taskId)) {
-      return this.activeTasks.get(taskId);
-    }
-    // If not in active memory, try loading from storage
-    const task = await StorageService.getTask(taskId);
-    if (task) {
-      this.activeTasks.set(taskId, task as Task);
-      return task as Task;
-    }
-    return undefined;
-  }
-
-  async getCollaborationByTaskId(taskId: string): Promise<AgentCollaboration | undefined> {
-    // In a real system this might be indexed, but for now we search
-    for (const collab of this.collaborations.values()) {
-      if (collab.taskId === taskId) {
-        return collab;
-      }
-    }
-    return undefined;
   }
 
   updateConfig(config: Partial<OrchestratorConfig>): void {

@@ -32,7 +32,6 @@ export interface ProjectFileDB {
 export interface GitRepositoryDB {
   id: string
   projectId: string
-  name: string
   url: string
   branch: string
   lastCommit: string
@@ -43,7 +42,6 @@ export interface GitRepositoryDB {
 export interface AIContextDB {
   projectId: string
   projectSummary: string
-  codebaseEmbeddings: Record<string, number[]>
   conversationHistory: ChatMessageDB[]
   knowledgeGraph: KnowledgeNodeDB[]
   activeMemory: ContextMemoryDB[]
@@ -52,12 +50,11 @@ export interface AIContextDB {
 export interface KnowledgeNodeDB {
   id: string
   projectId: string
-  type: 'file' | 'function' | 'concept' | 'pattern' | 'edge' | 'cluster'
+  type: 'file' | 'function' | 'concept' | 'pattern'
   content: string
   connections: string[]
   embedding: number[]
   relevanceScore: number
-  metadata: Record<string, any>
 }
 
 export interface ContextMemoryDB {
@@ -68,7 +65,6 @@ export interface ContextMemoryDB {
   timestamp: Date
   relevanceScore: number
   embedding: number[]
-  metadata: Record<string, any>
 }
 
 export interface AgentAssignmentDB {
@@ -216,46 +212,12 @@ export interface VectorIndexDB {
 }
 
 export interface IndexEntryDB {
-   id: string
-   indexId: string
-   content: string
-   embedding: number[]
-   metadata: Record<string, any>
-   keywords: string[]
-}
-
-// Performance Monitoring Database Interfaces
-export interface PerformanceMetricDB {
-   id: string
-   type: 'response_time' | 'memory_usage' | 'cpu_usage' | 'network_request' | 'cache_hit' | 'error_rate'
-   service: string
-   value: number
-   unit: string
-   timestamp: Date
-   metadata: Record<string, any>
-}
-
-export interface WebVitalDB {
-   id: string
-   metric: 'CLS' | 'FID' | 'LCP' | 'FCP' | 'TTFB'
-   value: number
-   rating: 'good' | 'needs-improvement' | 'poor'
-   timestamp: Date
-   url: string
-   metadata: Record<string, any>
-}
-
-export interface ErrorLogDB {
-   id: string
-   level: 'error' | 'warning' | 'info'
-   message: string
-   stack?: string
-   component?: string
-   service: string
-   timestamp: Date
-   userAgent: string
-   url: string
-   metadata: Record<string, any>
+  id: string
+  indexId: string
+  content: string
+  embedding: number[]
+  metadata: Record<string, any>
+  keywords: string[]
 }
 
 // Main database class
@@ -286,12 +248,6 @@ export class AIDevWorkspaceDB extends Dexie {
   
   vectorIndexes!: Table<VectorIndexDB, string>
   indexEntries!: Table<IndexEntryDB, string>
-  vectorDatabase!: Table<any, number>;
-
-  // Performance monitoring tables
-  performanceMetrics!: Table<PerformanceMetricDB, string>
-  webVitals!: Table<WebVitalDB, string>
-  errorLogs!: Table<ErrorLogDB, string>
 
   constructor() {
     super('AIDevWorkspaceDB')
@@ -327,8 +283,7 @@ export class AIDevWorkspaceDB extends Dexie {
       
       // Vector search related tables
       vectorIndexes: 'id, type, lastUpdated',
-      indexEntries: 'id, indexId',
-      vectorDatabase: 'id'
+      indexEntries: 'id, indexId'
     })
     
     this.version(2).stores({
@@ -357,13 +312,7 @@ export class AIDevWorkspaceDB extends Dexie {
       chatMessages: 'id, role, projectId, agentId, timestamp, [projectId+timestamp]',
       
       vectorIndexes: 'id, type, lastUpdated',
-      indexEntries: 'id, indexId, [indexId+id]',
-      vectorDatabase: 'id',
-
-      // Performance monitoring tables
-      performanceMetrics: 'id, type, service, timestamp',
-      webVitals: 'id, metric, rating, timestamp',
-      errorLogs: 'id, level, service, timestamp'
+      indexEntries: 'id, indexId, [indexId+id]'
     }).upgrade(async (tx) => {
       // Migration logic if needed
       console.log('Upgrading database to version 2')

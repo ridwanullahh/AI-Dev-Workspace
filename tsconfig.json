@@ -15,10 +15,9 @@
     "jsx": "react-jsx",
 
     /* Linting */
-    "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitAny": false,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
     /* Path mapping */
@@ -27,13 +26,13 @@
       "@/*": ["./src/*"],
       "@/components/*": ["./src/components/*"],
       "@/hooks/*": ["./src/hooks/*"],
-      "@/services/*": ["./src/services/*", "./services/*"],
+      "@/services/*": ["./services/*"],
       "@/contexts/*": ["./src/contexts/*"],
       "@/utils/*": ["./src/utils/*"],
       "@/types/*": ["./src/types/*"],
       "@/stores/*": ["./src/stores/*"]
     }
   },
-  "include": ["src", "services"],
+  "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

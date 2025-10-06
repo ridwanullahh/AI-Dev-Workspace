@@ -1,10 +1,10 @@
 import { Agent, Task, ChatMessage, TaskResult, AgentPerformance } from './types';
-import { StorageService } from './StorageService';
+import { storageService } from './storage';
 import { aiProviderService } from './aiProvider';
 import { enhancedVectorDatabase } from './enhancedVectorDatabase';
 import { semanticMemoryArchitecture } from './semanticMemory';
-import { knowledgeGraphSystem as knowledgeGraph } from './knowledgeGraph';
-import { contextManagementSystem as contextManager } from './contextManager';
+import { knowledgeGraphSystem } from './knowledgeGraph';
+import { contextManagementSystem } from './contextManager';
 
 interface AgentTemplate {
   id: string;
@@ -87,17 +87,6 @@ class SpecializedAgentsFactory {
   private specializations: Map<string, AgentSpecialization> = new Map();
   private learning: Map<string, AgentLearning> = new Map();
   private isInitialized = false;
-
-  async initialize(): Promise<void> {
-    if (this.isInitialized) {
-      return;
-    }
-    await this.loadAgents();
-    await this.initializeDefaultAgents();
-    await this.loadSpecializations();
-    await this.loadLearningData();
-    this.isInitialized = true;
-  }
 
   private agentTemplates: AgentTemplate[] = [
     {
@@ -673,14 +662,38 @@ Always ensure thorough test coverage and provide actionable insights for quality
     }
   ];
 
+  async initialize(): Promise<void> {
+    try {
+      console.log('Initializing Specialized Agents Factory...');
+      
+      // Load existing agents
+      await this.loadAgents();
+      
+      // Initialize default agents if none exist
+      if (this.agents.size === 0) {
+        await this.initializeDefaultAgents();
+      }
+      
+      // Load specializations
+      await this.loadSpecializations();
+      
+      // Load learning data
+      await this.loadLearningData();
+      
+      this.isInitialized = true;
+      console.log('Specialized Agents Factory initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize Specialized Agents Factory:', error);
+      throw error;
+    }
+  }
 
   private async loadAgents(): Promise<void> {
     try {
-      // const agents = await StorageService.getAllAgents();
-      // for (const agent of agents) {
-      //   this.agents.set(agent.id, agent);
-      // }
-      const agents = await StorageService.getAllAgents();
+      const agents = await storageService.getAgents();
+      for (const agent of agents) {
+        this.agents.set(agent.id, agent);
+      }
       console.log(`Loaded ${agents.length} existing agents`);
     } catch (error) {
       console.error('Failed to load agents:', error);
@@ -704,7 +717,7 @@ Always ensure thorough test coverage and provide actionable insights for quality
       };
 
       this.agents.set(agent.id, agent);
-      // await StorageService.addAgent(agent);
+      await storageService.saveAgent(agent);
       
       // Initialize specialization
       await this.initializeAgentSpecialization(agent.id, template);
@@ -810,11 +823,11 @@ Always ensure thorough test coverage and provide actionable insights for quality
 
   private async loadSpecializations(): Promise<void> {
     try {
-      // const data = await StorageService.getVectorDatabaseData();
-      // if (data && data.agentSpecializations) {
-      //   this.specializations = new Map(data.agentSpecializations);
-      //   console.log(`Loaded ${this.specializations.size} agent specializations`);
-      // }
+      const data = await storageService.getVectorDatabaseData();
+      if (data && data.agentSpecializations) {
+        this.specializations = new Map(data.agentSpecializations);
+        console.log(`Loaded ${this.specializations.size} agent specializations`);
+      }
     } catch (error) {
       console.error('Failed to load specializations:', error);
     }
@@ -822,11 +835,11 @@ Always ensure thorough test coverage and provide actionable insights for quality
 
   private async loadLearningData(): Promise<void> {
     try {
-      // const data = await StorageService.getVectorDatabaseData();
-      // if (data && data.agentLearning) {
-      //   this.learning = new Map(data.agentLearning);
-      //   console.log(`Loaded ${this.learning.size} agent learning profiles`);
-      // }
+      const data = await storageService.getVectorDatabaseData();
+      if (data && data.agentLearning) {
+        this.learning = new Map(data.agentLearning);
+        console.log(`Loaded ${this.learning.size} agent learning profiles`);
+      }
     } catch (error) {
       console.error('Failed to load learning data:', error);
     }
@@ -856,13 +869,12 @@ Always ensure thorough test coverage and provide actionable insights for quality
       config: {
         ...template.config,
         ...customConfig,
-        systemPrompt: customConfig?.systemPrompt || template.systemPrompt,
-        tools: customConfig?.tools || template.tools
+        systemPrompt: customConfig?.systemPrompt || template.systemPrompt
       }
     };
 
     this.agents.set(agentId, agent);
-    // await StorageService.addAgent(agent);
+    await storageService.saveAgent(agent);
 
     // Initialize specialization and learning
     await this.initializeAgentSpecialization(agentId, template);
@@ -900,7 +912,7 @@ Always ensure thorough test coverage and provide actionable insights for quality
       // Update agent status
       agent.status = 'working';
       agent.currentTask = task;
-      // await StorageService.updateAgent(agent.id, agent);
+      await storageService.saveAgent(agent);
 
       // Execute task with enhanced context
       const result = await this.executeEnhancedTask(agent, task, execution);
@@ -930,7 +942,7 @@ Always ensure thorough test coverage and provide actionable insights for quality
 
       // Update agent status
       agent.status = 'error';
-      // await StorageService.updateAgent(agent.id, agent);
+      await storageService.saveAgent(agent);
 
       // Record learning event
       await this.recordLearningEvent(agentId, 'failure', `Task failed: ${task.title}`, {
@@ -1032,8 +1044,8 @@ Always ensure thorough test coverage and provide actionable insights for quality
 
     // Get relevant knowledge from knowledge graph
     try {
-      const relatedConcepts = await knowledgeGraph.findRelatedConcepts(
-        task.id,
+      const relatedConcepts = await knowledgeGraphSystem.findRelatedConcepts(
+        agent.id,
         { limit: 3, minWeight: 0.6 }
       );
 
@@ -1050,13 +1062,13 @@ Always ensure thorough test coverage and provide actionable insights for quality
 
     // Get project context
     try {
-      // const project = await StorageService.getProject(task.projectId);
-      // if (project) {
-      //   context += `Project Context:\n`;
-      //   context += `- Name: ${project.name}\n`;
-      //   context += `- Type: ${project.type}\n`;
-      //   context += `- Status: ${project.status}\n\n`;
-      // }
+      const project = await storageService.getProject(task.projectId);
+      if (project) {
+        context += `Project Context:\n`;
+        context += `- Name: ${project.name}\n`;
+        context += `- Type: ${project.type}\n`;
+        context += `- Status: ${project.status}\n\n`;
+      }
     } catch (error) {
       console.error('Failed to retrieve project context:', error);
     }
@@ -1518,7 +1530,7 @@ Provide a complete solution including:
     agent.performance.userRating = (agent.performance.userRating + qualityScore) / 2;
 
     // Save agent
-    // await StorageService.updateAgent(agent.id, agent);
+    await storageService.saveAgent(agent);
 
     // Update performance history
     await this.updatePerformanceHistory(agentId, agent.performance, execution);
@@ -1673,7 +1685,7 @@ Provide a complete solution including:
         break;
     }
 
-    // await StorageService.updateAgent(agent.id, agent);
+    await storageService.saveAgent(agent);
   }
 
   async getAgent(agentId: string): Promise<Agent | null> {
@@ -1732,7 +1744,7 @@ Provide a complete solution including:
     }
 
     agent.config = { ...agent.config, ...config };
-    // await StorageService.updateAgent(agent.id, agent);
+    await storageService.saveAgent(agent);
   }
 
   async activateAgent(agentId: string): Promise<void> {
@@ -1742,7 +1754,7 @@ Provide a complete solution including:
     }
 
     agent.isActive = true;
-    // await StorageService.updateAgent(agent.id, agent);
+    await storageService.saveAgent(agent);
   }
 
   async deactivateAgent(agentId: string): Promise<void> {
@@ -1753,7 +1765,7 @@ Provide a complete solution including:
 
     agent.isActive = false;
     agent.status = 'idle';
-    // await StorageService.updateAgent(agent.id, agent);
+    await storageService.saveAgent(agent);
   }
 
   async deleteAgent(agentId: string): Promise<void> {
@@ -1762,7 +1774,7 @@ Provide a complete solution including:
     this.learning.delete(agentId);
     
     // Remove from storage
-    // await StorageService.deleteAgent(agentId);
+    await storageService.deleteAgent(agentId);
     
     // Save remaining data
     await this.saveAgentData();
@@ -1770,12 +1782,12 @@ Provide a complete solution including:
 
   private async saveAgentData(): Promise<void> {
     try {
-      // const data = await StorageService.getVectorDatabaseData() || {};
-      // data.agentSpecializations = Array.from(this.specializations.entries());
-      // data.agentLearning = Array.from(this.learning.entries());
-      // data.agentExecutions = Array.from(this.executions.entries());
+      const data = await storageService.getVectorDatabaseData() || {};
+      data.agentSpecializations = Array.from(this.specializations.entries());
+      data.agentLearning = Array.from(this.learning.entries());
+      data.agentExecutions = Array.from(this.executions.entries());
       
-      // await StorageService.saveVectorDatabaseData(data);
+      await storageService.saveVectorDatabaseData(data);
     } catch (error) {
       console.error('Failed to save agent data:', error);
     }

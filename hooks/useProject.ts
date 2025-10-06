@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useWorkspace } from '../contexts/WorkspaceContext';
 import { Project, ProjectFile } from '../services/types';
-import { enhancedProjectManager } from '../services/enhancedProjectManager';
+import { projectManagerService } from '../services/projectManager';
 
 interface UseProjectOptions {
   projectId?: string;
@@ -80,13 +80,13 @@ export function useProject(options: UseProjectOptions = {}): UseProjectReturn {
       setIsLoading(true);
       setError(null);
 
-      const projectData = await enhancedProjectManager.getProject(id);
+      const projectData = await projectManagerService.getProject(id);
       if (!projectData) {
         throw new Error('Project not found');
       }
 
-      const projectFiles = await enhancedProjectManager.getProjectFiles?.(id) || projectData.files || [];
-      const projectStats = await enhancedProjectManager.getProjectStats(id);
+      const projectFiles = await projectManagerService.getProjectFiles?.(id) || projectData.files || [];
+      const projectStats = await projectManagerService.getProjectStats(id);
 
       setProject(projectData);
       setFiles(projectFiles);
@@ -133,7 +133,7 @@ export function useProject(options: UseProjectOptions = {}): UseProjectReturn {
       setIsSaving(true);
       setError(null);
 
-      await enhancedProjectManager.updateProject(project.id, updates);
+      await projectManagerService.updateProject(project.id, updates);
       await loadProject(project.id);
       
     } catch (err) {
@@ -174,7 +174,7 @@ export function useProject(options: UseProjectOptions = {}): UseProjectReturn {
     if (!project) throw new Error('No project selected');
 
     try {
-      const newFile = await enhancedProjectManager.addFile(project.id, file);
+      const newFile = await projectManagerService.addFile(project.id, file);
       await loadProject(project.id); // Refresh to get updated files
       return newFile;
     } catch (err) {
@@ -188,7 +188,7 @@ export function useProject(options: UseProjectOptions = {}): UseProjectReturn {
     if (!project) return;
 
     try {
-      await enhancedProjectManager.updateFile(project.id, fileId, updates);
+      await projectManagerService.updateFile(project.id, fileId, updates);
       await loadProject(project.id); // Refresh to get updated files
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update file';
@@ -201,7 +201,7 @@ export function useProject(options: UseProjectOptions = {}): UseProjectReturn {
     if (!project) return;
 
     try {
-      await enhancedProjectManager.deleteFile(project.id, fileId);
+      await projectManagerService.deleteFile(project.id, fileId);
       await loadProject(project.id); // Refresh to get updated files
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete file';
@@ -218,7 +218,7 @@ export function useProject(options: UseProjectOptions = {}): UseProjectReturn {
     if (!project) return [];
 
     try {
-      return await enhancedProjectManager.searchProjectContent(project.id, query, {
+      return await projectManagerService.searchProjectContent(project.id, query, {
         type: 'all',
         limit: 20
       });
@@ -233,7 +233,7 @@ export function useProject(options: UseProjectOptions = {}): UseProjectReturn {
     if (!project) return null;
 
     try {
-      return await enhancedProjectManager.exportProject(project.id);
+      return await projectManagerService.exportProject(project.id);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to export project';
       setError(errorMessage);
@@ -246,7 +246,7 @@ export function useProject(options: UseProjectOptions = {}): UseProjectReturn {
     if (!project) throw new Error('No project selected');
 
     try {
-      const clonedProject = await enhancedProjectManager.cloneProject(project.id, newName);
+      const clonedProject = await projectManagerService.cloneProject(project.id, newName);
       return clonedProject;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to clone project';
