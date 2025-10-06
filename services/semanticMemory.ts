@@ -1,6 +1,6 @@
 import { enhancedVectorDatabase } from './enhancedVectorDatabase';
 import { localEmbeddingGenerator } from './localEmbeddingGenerator';
-import { StorageService } from './StorageService';
+import { storageService } from './storage';
 import { ContextMemory, KnowledgeNode } from './types';
 
 interface SemanticMemoryConfig {
@@ -66,6 +66,11 @@ class SemanticMemoryArchitecture {
       // Load existing memories from storage
       await this.loadMemories();
       
+      // Load memory index
+      await this.loadMemoryIndex();
+      
+      // Load consolidation history
+      await this.loadConsolidationHistory();
       
       // Initialize memory maintenance
       this.startMemoryMaintenance();
@@ -80,9 +85,9 @@ class SemanticMemoryArchitecture {
 
   private async loadMemories(): Promise<void> {
     try {
-      const memories = await StorageService.getAllContextMemories();
+      const memories = await storageService.getSemanticMemory();
       for (const memory of memories) {
-        this.activeMemories.set(memory.id, memory as ContextMemory);
+        this.activeMemories.set(memory.id, memory);
       }
       console.log(`Loaded ${memories.length} semantic memories`);
     } catch (error) {
@@ -90,6 +95,29 @@ class SemanticMemoryArchitecture {
     }
   }
 
+  private async loadMemoryIndex(): Promise<void> {
+    try {
+      const data = await storageService.getVectorDatabaseData();
+      if (data && data.memoryIndex) {
+        this.memoryIndex = new Map(data.memoryIndex);
+        console.log(`Loaded memory index with ${this.memoryIndex.size} types`);
+      }
+    } catch (error) {
+      console.error('Failed to load memory index:', error);
+    }
+  }
+
+  private async loadConsolidationHistory(): Promise<void> {
+    try {
+      const data = await storageService.getVectorDatabaseData();
+      if (data && data.consolidationHistory) {
+        this.consolidationHistory = data.consolidationHistory;
+        console.log(`Loaded ${this.consolidationHistory.length} consolidation events`);
+      }
+    } catch (error) {
+      console.error('Failed to load consolidation history:', error);
+    }
+  }
 
   private startMemoryMaintenance(): void {
     // Run consolidation every 24 hours
@@ -131,8 +159,14 @@ class SemanticMemoryArchitecture {
       timestamp: new Date(),
       relevanceScore: importanceScore,
       embedding: embeddingResult.embedding,
-      metadata,
-      projectId: projectId || '',
+      metadata: {
+        ...metadata,
+        projectId,
+        embeddingModel: embeddingResult.model,
+        dimensions: embeddingResult.dimensions,
+        processingTime: embeddingResult.processingTime,
+        confidence: embeddingResult.confidence
+      }
     };
 
     // Store in active memory
@@ -145,11 +179,7 @@ class SemanticMemoryArchitecture {
     this.memoryIndex.get(type)!.push(memoryId);
 
     // Store in persistent storage
-    if (await StorageService.getContextMemory(memory.id)) {
-        await StorageService.updateContextMemory(memory.id, memory);
-    } else {
-        await StorageService.addContextMemory(memory);
-    }
+    await storageService.saveSemanticMemory(memory);
     
     // Add to vector database for search
     await enhancedVectorDatabase.addToIndex(`semantic_memory_${projectId || 'global'}`, [{
@@ -259,7 +289,7 @@ class SemanticMemoryArchitecture {
     // Filter by project
     if (projectId) {
       candidateMemories = candidateMemories.filter(memory => 
-        memory.projectId === projectId
+        memory.metadata.projectId === projectId
       );
     }
 
@@ -486,15 +516,11 @@ class SemanticMemoryArchitecture {
         // Remove original memories and add consolidated one
         for (const memory of memories) {
           this.activeMemories.delete(memory.id);
-          await StorageService.deleteContextMemory(memory.id);
+          await storageService.deleteSemanticMemory(memory.id);
         }
         
         this.activeMemories.set(consolidatedMemory.id, consolidatedMemory);
-        if (await StorageService.getContextMemory(consolidatedMemory.id)) {
-            await StorageService.updateContextMemory(consolidatedMemory.id, consolidatedMemory);
-        } else {
-            await StorageService.addContextMemory(consolidatedMemory);
-        }
+        await storageService.saveSemanticMemory(consolidatedMemory);
       }
     }
     
@@ -504,7 +530,7 @@ class SemanticMemoryArchitecture {
     await this.updateMemoryIndex();
     
     // Save consolidation history
-    // await this.saveConsolidationHistory();
+    await this.saveConsolidationHistory();
     
     console.log(`Memory consolidation completed in ${Date.now() - consolidationStartTime}ms`);
   }
@@ -514,7 +540,7 @@ class SemanticMemoryArchitecture {
     
     for (const memory of this.activeMemories.values()) {
       // Group by type and project
-      const groupKey = `${memory.type}_${memory.projectId || 'global'}`;
+      const groupKey = `${memory.type}_${memory.metadata.projectId || 'global'}`;
       
       if (!groups.has(groupKey)) {
         groups.set(groupKey, []);
@@ -540,7 +566,7 @@ class SemanticMemoryArchitecture {
     
     // Generate consolidated embedding
     const embeddingResult = await localEmbeddingGenerator.generateEmbedding(consolidatedContent, {
-      type: 'text',
+      type: topMemories[0].type,
       useCache: true
     });
     
@@ -554,8 +580,8 @@ class SemanticMemoryArchitecture {
       timestamp: new Date(),
       relevanceScore: importanceScore,
       embedding: embeddingResult.embedding,
-      projectId: topMemories[0].projectId,
       metadata: {
+        ...topMemories[0].metadata,
         consolidatedFrom: topMemories.map(m => m.id),
         consolidationCount: topMemories.length,
         embeddingModel: embeddingResult.model,
@@ -589,6 +615,16 @@ class SemanticMemoryArchitecture {
       this.memoryIndex.get(memory.type)!.push(memory.id);
     }
     
+    // Save updated index
+    const data = await storageService.getVectorDatabaseData() || {};
+    data.memoryIndex = Array.from(this.memoryIndex.entries());
+    await storageService.saveVectorDatabaseData(data);
+  }
+
+  private async saveConsolidationHistory(): Promise<void> {
+    const data = await storageService.getVectorDatabaseData() || {};
+    data.consolidationHistory = this.consolidationHistory;
+    await storageService.saveVectorDatabaseData(data);
   }
 
   async performMemoryCleanup(): Promise<void> {
@@ -619,7 +655,7 @@ class SemanticMemoryArchitecture {
     // Remove memories from active storage and persistent storage
     for (const memoryId of memoriesToRemove) {
       this.activeMemories.delete(memoryId);
-      await StorageService.deleteContextMemory(memoryId);
+      await storageService.deleteSemanticMemory(memoryId);
     }
     
     // Update memory index
@@ -659,7 +695,7 @@ class SemanticMemoryArchitecture {
     let memories = Array.from(this.activeMemories.values());
     
     if (projectId) {
-      memories = memories.filter(memory => memory.projectId === projectId);
+      memories = memories.filter(memory => memory.metadata.projectId === projectId);
     }
     
     return memories.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -667,13 +703,8 @@ class SemanticMemoryArchitecture {
 
   async importMemories(memories: ContextMemory[]): Promise<void> {
     for (const memory of memories) {
-      const memoryWithProject = { ...memory, projectId: memory.projectId || '' };
-      this.activeMemories.set(memory.id, memoryWithProject);
-      if (await StorageService.getContextMemory(memory.id)) {
-        await StorageService.updateContextMemory(memory.id, memoryWithProject);
-      } else {
-        await StorageService.addContextMemory(memoryWithProject);
-      }
+      this.activeMemories.set(memory.id, memory);
+      await storageService.saveSemanticMemory(memory);
       
       // Update memory index
       if (!this.memoryIndex.has(memory.type)) {
@@ -691,10 +722,9 @@ class SemanticMemoryArchitecture {
     this.consolidationHistory = [];
     this.retrievalHistory = [];
     
-    const memories = await StorageService.getAllContextMemories();
-    for (const memory of memories) {
-      await StorageService.deleteContextMemory(memory.id);
-    }
+    await storageService.clearSemanticMemory();
+    await this.updateMemoryIndex();
+    await this.saveConsolidationHistory();
   }
 
   updateConfig(config: Partial<SemanticMemoryConfig>): void {

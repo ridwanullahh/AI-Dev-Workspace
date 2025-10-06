@@ -26,14 +26,14 @@ export interface RateLimit {
   tokensPerMinute: number
   currentRequests: number
   currentTokens: number
-  resetTime: Date
+  resetTime: string // ISO string
 }
 
 export interface Usage {
   requestsToday: number
   tokensToday: number
   costToday: number
-  lastUsed: Date
+  lastUsed: string // ISO string
   totalRequests: number
   totalTokens: number
 }
@@ -55,8 +55,8 @@ export interface Project {
   type: 'react-native' | 'web' | 'node' | 'python' | 'ai-service'
   status: 'active' | 'paused' | 'completed' | 'archived'
   progress: number
-  createdAt: Date
-  updatedAt: Date
+  createdAt: string // ISO string
+  updatedAt: string // ISO string
   files: ProjectFile[]
   gitRepository?: GitRepository
   aiContext: AIContext
@@ -70,15 +70,13 @@ export interface ProjectFile {
   content: string
   language: string
   size: number
-  lastModified: Date
+  lastModified: string // ISO string
   embeddings?: number[]
   isGenerated: boolean
 }
 
 export interface GitRepository {
   id: string
-  projectId: string
-  name: string
   url: string
   branch: string
   lastCommit: string
@@ -96,24 +94,20 @@ export interface AIContext {
 
 export interface KnowledgeNode {
   id: string
-  type: 'file' | 'function' | 'concept' | 'pattern' | 'edge' | 'cluster'
+  type: 'file' | 'function' | 'concept' | 'pattern'
   content: string
   connections: string[]
   embedding: number[]
   relevanceScore: number
-  metadata: Record<string, any>
-  projectId: string
 }
 
 export interface ContextMemory {
   id: string
   content: string
   type: 'code' | 'conversation' | 'decision' | 'pattern'
-  timestamp: Date
+  timestamp: string // ISO string
   relevanceScore: number
   embedding: number[]
-  metadata: Record<string, any>
-  projectId: string
 }
 
 export interface Agent {
@@ -159,8 +153,8 @@ export interface Task {
   estimatedTime: number
   actualTime?: number
   result?: TaskResult
-  createdAt: Date
-  updatedAt: Date
+  createdAt: string // ISO string
+  updatedAt: string // ISO string
 }
 
 export interface TaskResult {
@@ -174,7 +168,6 @@ export interface TaskResult {
 export interface AgentAssignment {
   id: string
   agentId: string
-  projectId: string
   role: string
   isActive: boolean
   tasksAssigned: number
@@ -187,16 +180,14 @@ export interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
   agentId?: string
   projectId?: string
-  timestamp: Date
-  metadata: {
+  timestamp: string // ISO string
+  metadata?: {
     model?: string
     provider?: string
     tokens?: number
     cost?: number
     attachments?: string[]
     source?: string
-    streaming?: boolean
-    tools?: any[]
   }
 }
 
@@ -232,13 +223,11 @@ export interface IndexEntry {
 
 // AI Request/Response types
 export interface AIRequest {
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>
-  model: string
+  messages: Array<{ role: string; content: string }>
+  model?: string
   temperature?: number
   maxTokens?: number
   provider?: string
-  stream?: boolean
-  tools?: any[]
 }
 
 export interface AIResponse {
@@ -425,17 +414,4 @@ export interface GitStatus {
   untracked: string[]
   ahead: number
   behind: number
-}
-
-// Workspace Context
-export interface WorkspaceContextType {
-  currentProject: Project | null;
-  projects: Project[];
-  isLoading: boolean;
-  error: string | null;
-  setCurrentProject: (project: Project | null) => void;
-  addProject: (project: Project) => void;
-  updateProject: (projectId: string, updates: Partial<Project>) => void;
-  removeProject: (projectId: string) => void;
-  clearError: () => void;
 }

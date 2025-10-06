@@ -1,9 +1,9 @@
-import { StorageService } from './StorageService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import git from 'isomorphic-git';
+import LightningFS from '@isomorphic-git/lightning-fs';
 
 interface GitRepository {
   id: string;
-  projectId: string;
   name: string;
   url: string;
   localPath: string;
@@ -45,11 +45,10 @@ class GitManager {
   async initialize(): Promise<void> {
     try {
       // Initialize Lightning FS for browser-based file system
-      this.fs = new (require('lightning-fs'))('git-workspace');
+      this.fs = new LightningFS('git-workspace');
       
       // Configure IsomorphicGit
-      // @ts-ignore
-      git.plugins.set('http', require('isomorphic-git/http/web'));
+      git.plugins.set('fs', this.fs);
       
       // Load existing repositories
       await this.loadRepositories();
@@ -64,9 +63,12 @@ class GitManager {
 
   private async loadRepositories(): Promise<void> {
     try {
-      const repos = await StorageService.getAllGitRepositories();
-      for (const repo of repos) {
-        this.repositories.set(repo.id, { ...repo, name: repo.name || '', localPath: `/repos/${repo.id}` } as GitRepository);
+      const stored = await AsyncStorage.getItem('git_repositories');
+      if (stored) {
+        const repos = JSON.parse(stored);
+        for (const repo of repos) {
+          this.repositories.set(repo.id, repo);
+        }
       }
     } catch (error) {
       console.error('Failed to load repositories:', error);
@@ -75,19 +77,14 @@ class GitManager {
 
   private async saveRepositories(): Promise<void> {
     try {
-      for (const repo of this.repositories.values()) {
-        if (await StorageService.getGitRepository(repo.id)) {
-          await StorageService.updateGitRepository(repo.id, repo);
-        } else {
-          await StorageService.addGitRepository({ ...repo });
-        }
-      }
+      const repos = Array.from(this.repositories.values());
+      await AsyncStorage.setItem('git_repositories', JSON.stringify(repos));
     } catch (error) {
       console.error('Failed to save repositories:', error);
     }
   }
 
-  async cloneRepository(projectId: string, url: string, options: {
+  async cloneRepository(url: string, options: {
     name?: string;
     branch?: string;
     credentials?: {
@@ -117,7 +114,6 @@ class GitManager {
       // Clone repository
       await git.clone({
         fs: this.fs,
-        http: require('isomorphic-git/http/web'),
         dir: localPath,
         url: url,
         ref: branch,
@@ -135,7 +131,6 @@ class GitManager {
 
       const repository: GitRepository = {
         id: repoId,
-        projectId: projectId,
         name: repoName,
         url: url,
         localPath: localPath,
@@ -167,7 +162,7 @@ class GitManager {
     return match ? match[1] : 'repository';
   }
 
-  async initRepository(projectId: string, name: string, initialFiles?: Array<{
+  async initRepository(name: string, initialFiles?: Array<{
     path: string;
     content: string;
   }>): Promise<string> {
@@ -222,7 +217,6 @@ class GitManager {
 
         const repository: GitRepository = {
           id: repoId,
-          projectId: projectId,
           name: name,
           url: '',
           localPath: localPath,
@@ -474,7 +468,6 @@ class GitManager {
 
       await git.push({
         fs: this.fs,
-        http: require('isomorphic-git/http/web'),
         dir: repo.localPath,
         remote: 'origin',
         ref: repo.branch,
@@ -501,7 +494,6 @@ class GitManager {
 
       await git.pull({
         fs: this.fs,
-        http: require('isomorphic-git/http/web'),
         dir: repo.localPath,
         ref: repo.branch,
         ...authConfig && { onAuth: () => authConfig }

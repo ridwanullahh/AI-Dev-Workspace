@@ -24,5 +24,3 @@ export function CodePage() {
     </div>
   )
 }
-
-export default CodePage;
